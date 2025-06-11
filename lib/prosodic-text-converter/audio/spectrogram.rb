@@ -4,9 +4,12 @@ require 'open3'
 require 'fileutils'
 
 module ProsodicTextConverter
-  # Spectrogram generation using FFmpeg
+  # Spectrogram generation using SoX
   class SpectrogramGenerator
-    def initialize(script_path: nil)
+    attr_reader :options
+
+    def initialize(options: {})
+      @options = default_options.merge(options)
       validate_dependencies
     end
 
@@ -19,9 +22,8 @@ module ProsodicTextConverter
 
       output_file = File.join(output_dir, "#{File.basename(audio_file, '.*')}_spectrogram.png")
       
-      # Build and run the FFmpeg command
-      command = build_ffmpeg_command(audio_file, output_file)
-      stdout, stderr, status = Open3.capture3(command)
+      command = build_sox_command(audio_file, output_file)
+      stdout, stderr, status = Open3.capture3(*command)
       
       unless status.success?
         raise "Spectrogram generation failed: #{stderr}"
@@ -42,44 +44,37 @@ module ProsodicTextConverter
     private
 
     def validate_dependencies
-      stdout, stderr, status = Open3.capture3('which', 'ffmpeg')
+      stdout, stderr, status = Open3.capture3('which', 'sox')
       unless status.success?
-        raise "FFmpeg not found. Please install FFmpeg: apt-get install ffmpeg (Linux) or brew install ffmpeg (macOS)"
+        raise "SoX not found. Please install SoX: apt-get install sox (Linux) or brew install sox (macOS)"
       end
     end
 
-    def build_ffmpeg_command(audio_file, output_file)
-      options = default_options
+    def build_sox_command(audio_file, output_file)
+      title = "Prosody Spectrogram: #{File.basename(audio_file)}"
       
-      command = ['ffmpeg', '-y', '-i', audio_file]
-
-      # Audio Normalization
-      if options[:normalise]
-        command << '-af' << 'loudnorm=I=-16:TP=-1.5:LRA=11'
-      end
-
-      # Noise Reduction (if enabled)
-      if options[:noise_reduction]
-        command << '-af' << 'afftdn=nr=true'
-      end
-
-      command += [
-        '-lavfi',
-        "spectrogram=s=1024x512:window_length=#{options[:window_size]}:overlap=#{options[:overlap]}:frequency_range=#{options[:frequency_range]}",
-        '-frames:v', '1',
-        output_file
+      [
+        'sox',
+        audio_file,
+        '-n',
+        'spectrogram',
+        '-o', output_file,
+        '-t', title,
+        '-l',  # Include axis labels
+        '-m',  # Monochrome (grayscale)
+        '-z', @options[:z_axis_range].to_s,
+        '-y', @options[:y_axis_bins].to_s,
+        '-X', @options[:x_axis_pixels_per_sec].to_s,
+        '-w', @options[:window_function]
       ]
-
-      command.join(' ')
     end
 
     def default_options
       {
-        window_size: 0.05, # seconds
-        overlap: 0.75,     # 75% overlap
-        frequency_range: '0-8000', # Hz
-        normalise: true,   # Normalise Audio
-        noise_reduction: true # Apply Noise Reduction
+        z_axis_range: 100,           # Dynamic range in dB (100-120 good for speech)
+        x_axis_pixels_per_sec: 200,  # Time resolution (pixels per second)
+        y_axis_bins: 513,            # Frequency bins (1024-point FFT)
+        window_function: 'Hann'      # Windowing function
       }
     end
   end

@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'logger'
+require 'timeout'
 require_relative '../audio/spectrogram'
 require_relative '../audio/pitch_analyzer'
 require_relative '../analysis/spectrogram_analyzer'
@@ -9,76 +11,222 @@ require_relative '../conversion/llm_converter'
 require_relative '../conversion/ssml_formatter'
 
 module ProsodicTextConverter
-  # Main application orchestrator
+  # Main application orchestrator for prosodic text conversion
+  #
+  # @example Basic usage
+  #   converter = Converter.new(pattern: :deliberate, provider: :gemini)
+  #   result = converter.convert("Hello world")
+  #
+  # @example With audio analysis
+  #   converter = Converter.new(pitch_backend: :aubio)
+  #   result = converter.convert_with_audio_analysis("Hello", "voice.wav")
   class Converter
-    def initialize(pattern: nil, provider: :openai, model: 'gpt-4', pitch_backend: :aubio, **llm_options)
-      @pattern = pattern || default_pattern
-      @analyzer = TextAnalyzer.new(@pattern)
-      @converter = LLMConverter.new(
-        provider: provider, 
-        model: model, 
-        **llm_options
-      )
-      @formatter = SSMLFormatter.new
-      @spectrogram_generator = SpectrogramGenerator.new
-      @spectrogram_analyzer = SpectrogramAnalyzer.new(pitch_backend: pitch_backend)
+    # @return [Logger] the logger instance
+    attr_reader :logger
+
+    # @return [ProsodicPattern] current prosodic pattern
+    attr_reader :pattern
+
+    # @return [Symbol] current pitch backend
+    attr_reader :pitch_backend
+    # Initialize a new Converter instance
+    #
+    # @param pattern [ProsodicPattern, nil] prosodic pattern to use
+    # @param provider [Symbol] LLM provider (:gemini, :openai, :anthropic, etc.)
+    # @param model [String] model name to use
+    # @param pitch_backend [Symbol] pitch analysis backend (:aubio, :sonic_annotator)
+    # @param logger [Logger, nil] custom logger instance
+    # @param llm_options [Hash] additional options for LLM
+    # @raise [ArgumentError] if required dependencies are missing
+    # @raise [RuntimeError] if initialization fails
+    def initialize(pattern: nil, provider: :gemini, model: 'gemini-2.0-flash', pitch_backend: :aubio, logger: nil, **llm_options)
+      @logger = logger || setup_logger
       @pitch_backend = pitch_backend
+      
+      begin
+        @logger.info("Initializing Converter with provider: #{provider}, model: #{model}, backend: #{pitch_backend}")
+        
+        # Validate pitch backend availability
+        validate_pitch_backend(pitch_backend)
+        
+        # Initialize components with error handling
+        @pattern = pattern || default_pattern
+        @logger.debug("Using prosodic pattern: #{@pattern.name}")
+        
+        @analyzer = initialize_text_analyzer
+        @converter = initialize_llm_converter(provider, model, llm_options)
+        @formatter = initialize_ssml_formatter
+        @spectrogram_generator = initialize_spectrogram_generator
+        @spectrogram_analyzer = initialize_spectrogram_analyzer(pitch_backend)
+        
+        @logger.info("Converter initialized successfully")
+        
+      rescue StandardError => e
+        @logger.error("Failed to initialize Converter: #{e.message}")
+        @logger.debug("Backtrace: #{e.backtrace.join("\n")}")
+        raise RuntimeError, "Converter initialization failed: #{e.message}"
+      end
     end
 
+    # Convert text to SSML using current prosodic pattern
+    #
+    # @param text [String] text to convert
+    # @return [Hash] conversion results with SSML output and analysis
+    # @raise [ArgumentError] if text is invalid
+    # @raise [RuntimeError] if conversion fails
     def convert(text)
-      chunks = @analyzer.chunk_text(text)
-      ssml_output = @converter.convert_text(text, @pattern, chunks)
+      validate_text_input(text)
       
-      validated_ssml = @formatter.clean_ssml(ssml_output)
-      timing_info = @formatter.extract_timing_info(validated_ssml)
-      
-      {
-        original_text: text,
-        ssml_output: validated_ssml,
-        pattern_used: @pattern.to_h,
-        timing_analysis: timing_info,
-        chunks_processed: chunks.length
-      }
+      begin
+        @logger.info("Converting text (#{text.length} chars)")
+        start_time = Time.now
+        
+        # Analyze text structure with timeout
+        text_analysis = Timeout.timeout(30) do
+          @analyzer.analyze(text)
+        end
+        @logger.debug("Text analyzed: #{text_analysis[:sentence_count]} sentences")
+        
+        # Convert with LLM and timeout (pass rich text analysis and prosodic context)
+        ssml_output = Timeout.timeout(120) do
+          @converter.convert_text_with_analysis(text_analysis, @pattern)
+        end
+        @logger.debug("LLM conversion completed")
+        
+        # Format and validate SSML
+        validated_ssml = @formatter.clean_ssml(ssml_output)
+        timing_info = @formatter.extract_timing_info(validated_ssml)
+        
+        conversion_time = Time.now - start_time
+        @logger.info("Text conversion completed in #{conversion_time.round(2)}s")
+        
+        {
+          original_text: text,
+          ssml_output: validated_ssml,
+          pattern_used: @pattern.to_h,
+          timing_analysis: timing_info,
+          sentences_processed: text_analysis[:sentence_count],
+          conversion_time: conversion_time
+        }
+        
+      rescue Timeout::Error => e
+        error_msg = "Text conversion timed out: #{e.message}"
+        @logger.error(error_msg)
+        raise RuntimeError, error_msg
+      rescue StandardError => e
+        error_msg = "Text conversion failed: #{e.message}"
+        @logger.error(error_msg)
+        @logger.debug("Backtrace: #{e.backtrace.join("\n")}")
+        raise RuntimeError, error_msg
+      end
     end
 
+    # Extract prosodic pattern from audio file analysis
+    #
+    # @param audio_file [String] path to audio file
+    # @param output_dir [String] directory for spectrogram output
+    # @return [Hash] audio analysis results and extracted pattern
+    # @raise [ArgumentError] if audio file is invalid
+    # @raise [RuntimeError] if analysis fails
     def extract_pattern_from_audio(audio_file, output_dir: './spectrograms')
-      # Generate spectrogram
-      spectrogram_result = @spectrogram_generator.generate(audio_file, output_dir: output_dir)
+      validate_audio_file(audio_file)
+      validate_output_directory(output_dir)
       
-      # Analyze spectrogram for prosodic patterns (now with real pitch analysis)
-      analysis_result = @spectrogram_analyzer.analyze(spectrogram_result[:spectrogram_file])
-      
-      # Update our pattern
-      @pattern = analysis_result[:recommended_pattern]
-      @analyzer = TextAnalyzer.new(@pattern)
-      
-      {
-        audio_file: audio_file,
-        spectrogram_file: spectrogram_result[:spectrogram_file],
-        analysis: analysis_result,
-        extracted_pattern: @pattern.to_h,
-        pitch_backend_used: @pitch_backend
-      }
+      begin
+        @logger.info("Extracting prosodic pattern from audio: #{audio_file}")
+        start_time = Time.now
+        
+        # Generate spectrogram with timeout
+        spectrogram_result = Timeout.timeout(60) do
+          @spectrogram_generator.generate(audio_file, output_dir: output_dir)
+        end
+        @logger.debug("Spectrogram generated: #{spectrogram_result[:spectrogram_file]}")
+        
+        # Analyze spectrogram for prosodic patterns with timeout
+        analysis_result = Timeout.timeout(120) do
+          @spectrogram_analyzer.analyze(spectrogram_result[:spectrogram_file])
+        end
+        @logger.debug("Audio analysis completed")
+        
+        # Update pattern
+        @pattern = analysis_result[:recommended_pattern]
+        @logger.info("Pattern updated from audio analysis: #{@pattern.name}")
+        
+        analysis_time = Time.now - start_time
+        @logger.info("Audio analysis completed in #{analysis_time.round(2)}s")
+        
+        {
+          audio_file: audio_file,
+          spectrogram_file: spectrogram_result[:spectrogram_file],
+          analysis: analysis_result,
+          extracted_pattern: @pattern.to_h,
+          pitch_backend_used: @pitch_backend,
+          analysis_time: analysis_time
+        }
+        
+      rescue Timeout::Error => e
+        error_msg = "Audio analysis timed out: #{e.message}"
+        @logger.error(error_msg)
+        raise RuntimeError, error_msg
+      rescue StandardError => e
+        error_msg = "Audio analysis failed: #{e.message}"
+        @logger.error(error_msg)
+        @logger.debug("Backtrace: #{e.backtrace.join("\n")}")
+        raise RuntimeError, error_msg
+      end
     end
 
+    # Convert text using prosodic pattern extracted from audio
+    #
+    # @param text [String] text to convert
+    # @param audio_file [String] path to audio file for pattern extraction
+    # @return [Hash] combined audio analysis and text conversion results
+    # @raise [ArgumentError] if inputs are invalid
+    # @raise [RuntimeError] if conversion fails
     def convert_with_audio_analysis(text, audio_file)
-      # First extract pattern from audio
-      pattern_result = extract_pattern_from_audio(audio_file)
+      validate_text_input(text)
+      validate_audio_file(audio_file)
       
-      # Then convert text using extracted pattern
-      conversion_result = convert(text)
-      
-      {
-        **conversion_result,
-        audio_analysis: pattern_result,
-        pattern_source: 'extracted_from_audio'
-      }
+      begin
+        @logger.info("Converting text with audio analysis")
+        start_time = Time.now
+        
+        # First extract pattern from audio
+        pattern_result = extract_pattern_from_audio(audio_file)
+        @logger.debug("Audio pattern extracted successfully")
+        
+        # Then convert text using extracted pattern
+        conversion_result = convert(text)
+        @logger.debug("Text conversion with extracted pattern completed")
+        
+        total_time = Time.now - start_time
+        @logger.info("Audio-guided conversion completed in #{total_time.round(2)}s")
+        
+        {
+          **conversion_result,
+          audio_analysis: pattern_result,
+          pattern_source: 'extracted_from_audio',
+          total_processing_time: total_time
+        }
+        
+      rescue StandardError => e
+        error_msg = "Audio-guided conversion failed: #{e.message}"
+        @logger.error(error_msg)
+        @logger.debug("Backtrace: #{e.backtrace.join("\n")}")
+        raise RuntimeError, error_msg
+      end
     end
 
+    # Get available pitch analysis backends
+    #
+    # @return [Array<Symbol>] list of available backends
     def self.available_pitch_backends
       PitchAnalyzerFactory.available_backends
     end
 
+    # Get predefined prosodic patterns
+    #
+    # @return [Hash<Symbol, ProsodicPattern>] predefined patterns
     def self.predefined_patterns
       {
         deliberate: ProsodicPattern.new(
@@ -107,8 +255,156 @@ module ProsodicTextConverter
 
     private
 
+    # Setup logger instance
+    #
+    # @return [Logger] configured logger
+    def setup_logger
+      Logger.new($stderr).tap do |log|
+        log.level = Logger::INFO
+        log.formatter = proc do |severity, datetime, progname, msg|
+          "[#{datetime.strftime('%Y-%m-%d %H:%M:%S')}] Converter #{severity}: #{msg}\n"
+        end
+      end
+    end
+
+    # Get default prosodic pattern
+    #
+    # @return [ProsodicPattern] default pattern
     def default_pattern
       self.class.predefined_patterns[:deliberate]
+    end
+
+    # Validate pitch backend availability
+    #
+    # @param backend [Symbol] backend to validate
+    # @raise [ArgumentError] if backend is unavailable
+    def validate_pitch_backend(backend)
+      available = self.class.available_pitch_backends
+      return unless available.empty? || !available.include?(backend)
+      
+      error_msg = if available.empty?
+                    "No pitch analysis backends available"
+                  else
+                    "Pitch backend '#{backend}' not available. Available: #{available.join(', ')}"
+                  end
+      @logger.error(error_msg)
+      raise ArgumentError, error_msg
+    end
+
+    # Validate text input
+    #
+    # @param text [String] text to validate
+    # @raise [ArgumentError] if text is invalid
+    def validate_text_input(text)
+      if text.nil? || text.strip.empty?
+        error_msg = "Text input cannot be nil or empty"
+        @logger.error(error_msg)
+        raise ArgumentError, error_msg
+      end
+      
+      if text.length > 50000  # Reasonable limit
+        error_msg = "Text input too long (#{text.length} chars, max 50000)"
+        @logger.error(error_msg)
+        raise ArgumentError, error_msg
+      end
+    end
+
+    # Validate audio file input
+    #
+    # @param audio_file [String] path to audio file
+    # @raise [ArgumentError] if audio file is invalid
+    def validate_audio_file(audio_file)
+      if audio_file.nil? || audio_file.strip.empty?
+        error_msg = "Audio file path cannot be nil or empty"
+        @logger.error(error_msg)
+        raise ArgumentError, error_msg
+      end
+      
+      unless File.exist?(audio_file)
+        error_msg = "Audio file not found: #{audio_file}"
+        @logger.error(error_msg)
+        raise ArgumentError, error_msg
+      end
+      
+      unless File.readable?(audio_file)
+        error_msg = "Audio file not readable: #{audio_file}"
+        @logger.error(error_msg)
+        raise ArgumentError, error_msg
+      end
+    end
+
+    # Validate output directory
+    #
+    # @param output_dir [String] directory path
+    # @raise [ArgumentError] if directory is invalid
+    def validate_output_directory(output_dir)
+      begin
+        FileUtils.mkdir_p(output_dir) unless Dir.exist?(output_dir)
+      rescue StandardError => e
+        error_msg = "Cannot create output directory #{output_dir}: #{e.message}"
+        @logger.error(error_msg)
+        raise ArgumentError, error_msg
+      end
+      
+      unless File.writable?(output_dir)
+        error_msg = "Output directory not writable: #{output_dir}"
+        @logger.error(error_msg)
+        raise ArgumentError, error_msg
+      end
+    end
+
+    # Initialize text analyzer with error handling
+    #
+    # @return [TextAnalyzer] configured analyzer
+    def initialize_text_analyzer
+      TextAnalyzer.new(language: :en)
+    rescue StandardError => e
+      @logger.error("Failed to initialize text analyzer: #{e.message}")
+      raise RuntimeError, "Text analyzer initialization failed: #{e.message}"
+    end
+
+    # Initialize LLM converter with error handling
+    #
+    # @param provider [Symbol] LLM provider
+    # @param model [String] model name
+    # @param options [Hash] additional options
+    # @return [LLMConverter] configured converter
+    def initialize_llm_converter(provider, model, options)
+      LLMConverter.new(provider: provider, model: model, logger: @logger, **options)
+    rescue StandardError => e
+      @logger.error("Failed to initialize LLM converter: #{e.message}")
+      raise RuntimeError, "LLM converter initialization failed: #{e.message}"
+    end
+
+    # Initialize SSML formatter with error handling
+    #
+    # @return [SSMLFormatter] configured formatter
+    def initialize_ssml_formatter
+      SSMLFormatter.new
+    rescue StandardError => e
+      @logger.error("Failed to initialize SSML formatter: #{e.message}")
+      raise RuntimeError, "SSML formatter initialization failed: #{e.message}"
+    end
+
+    # Initialize spectrogram generator with error handling
+    #
+    # @return [SpectrogramGenerator] configured generator
+    def initialize_spectrogram_generator
+      SpectrogramGenerator.new
+    rescue StandardError => e
+      @logger.error("Failed to initialize spectrogram generator: #{e.message}")
+      raise RuntimeError, "Spectrogram generator initialization failed: #{e.message}"
+    end
+
+    # Initialize spectrogram analyzer with error handling
+    #
+    # @param pitch_backend [Symbol] pitch backend to use
+    # @return [SpectrogramAnalyzer] configured analyzer
+    def initialize_spectrogram_analyzer(pitch_backend)
+      SpectrogramAnalyzer.new(pitch_backend: pitch_backend)
+    rescue StandardError => e
+      @logger.error("Failed to initialize spectrogram analyzer: #{e.message}")
+      raise RuntimeError, "Spectrogram analyzer initialization failed: #{e.message}"
     end
   end
 end
