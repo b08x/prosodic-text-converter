@@ -130,58 +130,6 @@ RUN cd /tmp && \
     /usr/local/bin/sonic-annotator --version && \
     cd / && rm -rf /tmp/sonic-annotator-1.7*
 
-# Install Vamp SDK (tarball uses autotools, not CMake)
-RUN cd /tmp && \
-    wget https://code.soundsoftware.ac.uk/attachments/download/2691/vamp-plugin-sdk-2.10.0.tar.gz && \
-    tar xf vamp-plugin-sdk-2.10.0.tar.gz && \
-    cd vamp-plugin-sdk-2.10.0 && \
-    ./configure --prefix=/usr/local && \
-    make && make install && \
-    ldconfig && \
-    cd / && rm -rf /tmp/vamp-plugin-sdk-2.10.0*
-
-# Create Vamp plugin directory
-RUN mkdir -p /usr/local/lib/vamp
-
-# Build essential Vamp plugins
-RUN cd /tmp && \
-    # pYIN plugin for pitch tracking (pre-compiled binary)
-    wget https://code.soundsoftware.ac.uk/attachments/download/2631/pyin-v1.2-linux64.tar.gz && \
-    tar xf pyin-v1.2-linux64.tar.gz && \
-    cp pyin-v1.2-linux64/pyin.so /usr/local/lib/vamp/ && \
-    cd /tmp && \
-    \
-    # Vamp example plugins (includes fixedtempo) - pre-compiled binaries
-    wget https://code.soundsoftware.ac.uk/attachments/download/2693/vamp-plugin-sdk-2.10.0-binaries-amd64-linux.tar.gz && \
-    tar xf vamp-plugin-sdk-2.10.0-binaries-amd64-linux.tar.gz && \
-    find vamp-plugin-sdk-2.10.0-binaries-amd64-linux -name "*.so" -exec cp {} /usr/local/lib/vamp/ \; && \
-    cd /tmp && \
-    \
-    # Aubio Vamp plugins (pre-compiled binary)
-    wget https://aubio.org/bin/vamp-aubio-plugins/0.5.1/vamp-aubio-plugins-0.5.1-x86_64.tar.bz2 && \
-    tar xf vamp-aubio-plugins-0.5.1-x86_64.tar.bz2 && \
-    cp vamp-aubio-plugins-0.5.1-x86_64/*.so /usr/local/lib/vamp/ && \
-    cd /tmp && \
-    \
-    # Clean up
-    rm -rf /tmp/pyin-v1.2-linux64* /tmp/vamp-plugin-sdk-2.10.0-binaries-amd64-linux* /tmp/vamp-aubio-plugins-*
-
-# Build sonic-annotator from source with proper Qt6 support
-RUN cd /tmp && \
-    wget https://github.com/sonic-visualiser/sonic-annotator/releases/download/sonic-annotator-1.7/sonic-annotator-1.7.tar.gz && \
-    tar xf sonic-annotator-1.7.tar.gz && \
-    cd sonic-annotator-1.7 && \
-    # Configure Qt6 environment and build
-    QT_SELECT=qt6 meson setup build --buildtype release && \
-    # Build with ninja
-    ninja -C build && \
-    # Install binary
-    cp build/sonic-annotator /usr/local/bin/ && \
-    chmod +x /usr/local/bin/sonic-annotator && \
-    # Verify the build
-    /usr/local/bin/sonic-annotator --version && \
-    cd / && rm -rf /tmp/sonic-annotator-1.7*
-
 # Set working directory for Ruby application
 WORKDIR /app
 
