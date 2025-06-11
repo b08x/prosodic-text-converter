@@ -1,0 +1,38 @@
+# Documentation
+*.md
+docs/
+
+# Git files
+.git/
+.gitignore
+
+# Development files
+.rspec
+.rubocop.yml
+
+# Output directories
+spectrograms/
+output/
+
+# Test files
+spec/
+test/
+
+# Development gems bundle
+.bundle/
+
+# IDE files
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.log
+
+# Backup files
+*~
+*.bak
