@@ -4,15 +4,35 @@ require 'open3'
 require 'fileutils'
 
 module ProsodicTextConverter
-  # Spectrogram generation using SoX
+  # Spectrogram generation using SoX for audio visualization and analysis
+  #
+  # @example Basic usage
+  #   generator = SpectrogramGenerator.new
+  #   result = generator.generate('voice.wav', output_dir: './spectrograms')
+  #   puts result[:spectrogram_file]
   class SpectrogramGenerator
+    # @return [Hash] generation options
     attr_reader :options
 
+    # Initialize spectrogram generator with customizable options
+    #
+    # @param options [Hash] spectrogram generation options
+    # @option options [Integer] :z_axis_range dynamic range in dB (default: 100)
+    # @option options [Integer] :x_axis_pixels_per_sec time resolution (default: 200)
+    # @option options [Integer] :y_axis_bins frequency bins (default: 513)
+    # @option options [String] :window_function windowing function (default: 'Hann')
+    # @raise [RuntimeError] if SoX is not available
     def initialize(options: {})
       @options = default_options.merge(options)
       validate_dependencies
     end
 
+    # Generate spectrogram from audio file using SoX
+    #
+    # @param audio_file [String] path to input audio file
+    # @param output_dir [String] directory for output spectrogram
+    # @return [Hash] generation results with file paths and metadata
+    # @raise [RuntimeError] if audio file not found or generation fails
     def generate(audio_file, output_dir: './spectrograms')
       FileUtils.mkdir_p(output_dir)
       
@@ -43,6 +63,9 @@ module ProsodicTextConverter
 
     private
 
+    # Validate that SoX is available on the system
+    #
+    # @raise [RuntimeError] if SoX is not found
     def validate_dependencies
       stdout, stderr, status = Open3.capture3('which', 'sox')
       unless status.success?
@@ -50,6 +73,11 @@ module ProsodicTextConverter
       end
     end
 
+    # Build SoX command for spectrogram generation
+    #
+    # @param audio_file [String] input audio file path
+    # @param output_file [String] output spectrogram file path
+    # @return [Array<String>] command arguments for SoX
     def build_sox_command(audio_file, output_file)
       title = "Prosody Spectrogram: #{File.basename(audio_file)}"
       
@@ -69,6 +97,9 @@ module ProsodicTextConverter
       ]
     end
 
+    # Default options for spectrogram generation
+    #
+    # @return [Hash] default configuration options
     def default_options
       {
         z_axis_range: 100,           # Dynamic range in dB (100-120 good for speech)

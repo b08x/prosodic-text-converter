@@ -3,12 +3,22 @@
 require 'nokogiri'
 
 module ProsodicTextConverter
-  # SSML formatter and validator
+  # SSML formatter and validator for speech synthesis markup
+  #
+  # @example Basic usage
+  #   formatter = SSMLFormatter.new
+  #   clean_ssml = formatter.clean_ssml(raw_ssml)
+  #   timing = formatter.extract_timing_info(clean_ssml)
   class SSMLFormatter
+    # Initialize SSML formatter with XML builder
     def initialize
       @builder = Nokogiri::XML::Builder.new(encoding: 'UTF-8')
     end
 
+    # Validate SSML markup for syntax correctness
+    #
+    # @param ssml_text [String] SSML markup to validate
+    # @return [Boolean] true if valid, false otherwise
     def validate_ssml(ssml_text)
       begin
         doc = Nokogiri::XML(ssml_text) { |config| config.strict }
@@ -18,6 +28,10 @@ module ProsodicTextConverter
       end
     end
 
+    # Clean and normalize SSML markup
+    #
+    # @param ssml_text [String] raw SSML markup
+    # @return [String] cleaned and formatted SSML
     def clean_ssml(ssml_text)
       # Remove any malformed tags, normalize whitespace
       doc = Nokogiri::XML(ssml_text)
@@ -26,6 +40,10 @@ module ProsodicTextConverter
       ssml_text # Return original if parsing fails
     end
 
+    # Extract timing information from SSML markup
+    #
+    # @param ssml_text [String] SSML markup
+    # @return [Hash] timing analysis with segments, breaks, and durations
     def extract_timing_info(ssml_text)
       doc = Nokogiri::XML(ssml_text)
       

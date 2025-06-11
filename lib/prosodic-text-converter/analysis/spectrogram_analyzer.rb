@@ -6,13 +6,26 @@ require_relative 'prosodic_pattern'
 
 module ProsodicTextConverter
   # Enhanced spectrogram analysis with comprehensive pitch backends
+  #
+  # @example Basic usage
+  #   analyzer = SpectrogramAnalyzer.new(pitch_backend: :aubio)
+  #   analysis = analyzer.analyze('voice_spectrogram.png')
   class SpectrogramAnalyzer
+    # Initialize spectrogram analyzer with pitch backend
+    #
+    # @param pitch_backend [Symbol] pitch analysis backend (:aubio or :sonic_annotator)
+    # @raise [RuntimeError] if dependencies are missing
     def initialize(pitch_backend: :aubio)
       @pitch_analyzer = PitchAnalyzerFactory.create(backend: pitch_backend)
       @pitch_backend = pitch_backend
       validate_dependencies
     end
 
+    # Analyze spectrogram file to extract prosodic patterns
+    #
+    # @param spectrogram_file [String] path to spectrogram image file
+    # @return [Hash] comprehensive analysis results with prosodic features
+    # @raise [RuntimeError] if spectrogram file not found
     def analyze(spectrogram_file)
       unless File.exist?(spectrogram_file)
         raise "Spectrogram file not found: #{spectrogram_file}"
@@ -52,6 +65,9 @@ module ProsodicTextConverter
 
     private
 
+    # Validate required dependencies for image analysis
+    #
+    # @raise [RuntimeError] if MiniMagick gem is not available
     def validate_dependencies
       begin
         require 'mini_magick'
@@ -60,6 +76,10 @@ module ProsodicTextConverter
       end
     end
 
+    # Derive original audio file path from spectrogram filename
+    #
+    # @param spectrogram_file [String] path to spectrogram file
+    # @return [String, nil] path to audio file or nil if not found
     def derive_audio_file_path(spectrogram_file)
       # Try to find the original audio file based on spectrogram filename
       base_name = File.basename(spectrogram_file, '_spectrogram.png')
@@ -81,6 +101,10 @@ module ProsodicTextConverter
       nil # Audio file not found
     end
 
+    # Analyze pitch data from original audio file if available
+    #
+    # @param audio_file [String, nil] path to audio file
+    # @return [Array<Hash>, nil] pitch analysis data or nil if unavailable
     def analyze_pitch_from_audio(audio_file)
       return nil unless audio_file && File.exist?(audio_file)
       
@@ -93,6 +117,10 @@ module ProsodicTextConverter
       end
     end
 
+    # Analyze temporal structure from spectrogram image
+    #
+    # @param image [MiniMagick::Image] spectrogram image
+    # @return [Hash] temporal analysis with segments and timing
     def analyze_temporal_structure(image)
       # Convert to grayscale and get pixel data for temporal analysis
       grayscale = image.dup.colorspace('Gray')
@@ -113,6 +141,11 @@ module ProsodicTextConverter
       }
     end
 
+    # Analyze frequency patterns combining spectrogram and pitch data
+    #
+    # @param image [MiniMagick::Image] spectrogram image
+    # @param pitch_analysis [Array<Hash>, nil] pitch analysis data
+    # @return [Hash] frequency analysis with pitch variation metrics
     def analyze_frequency_patterns(image, pitch_analysis)
       height = image.height
       
@@ -300,6 +333,12 @@ module ProsodicTextConverter
       Math.sqrt(variance)
     end
 
+    # Extract comprehensive prosodic features from analysis data
+    #
+    # @param temporal [Hash] temporal analysis results
+    # @param frequency [Hash] frequency analysis results
+    # @param pitch_analysis [Array<Hash>, nil] pitch analysis data
+    # @return [Hash] prosodic features for pattern creation
     def extract_prosodic_features(temporal, frequency, pitch_analysis)
       base_features = {
         segment_duration: temporal[:average_segment_duration].clamp(0.5, 2.0),
@@ -348,6 +387,10 @@ module ProsodicTextConverter
       end
     end
 
+    # Create prosodic pattern from extracted features
+    #
+    # @param features [Hash] prosodic features
+    # @return [ProsodicPattern] configured prosodic pattern
     def create_prosodic_pattern(features)
       ProsodicPattern.new(
         name: "extracted_via_#{features[:analysis_method]}_#{features[:backend_used]}",

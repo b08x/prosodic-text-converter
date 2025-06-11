@@ -7,8 +7,11 @@ gem 'nokogiri', '~> 1.15'
 gem 'mini_magick', '~> 4.12'
 
 group :development do
+  gem 'rake', '~> 13.0'
   gem 'rspec', '~> 3.12'
   gem 'rubocop', '~> 1.50'
+  gem 'rdoc', '~> 6.5'
+  gem 'yard', '~> 0.9'
 end
 
 gem "pry", "~> 0.15.2"

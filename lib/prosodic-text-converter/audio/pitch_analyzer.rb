@@ -715,7 +715,19 @@ module ProsodicTextConverter
   end
 
   # Factory for creating pitch analyzers
+  #
+  # @example Create an Aubio analyzer
+  #   analyzer = PitchAnalyzerFactory.create(backend: :aubio)
+  #
+  # @example Create a Sonic Annotator analyzer
+  #   analyzer = PitchAnalyzerFactory.create(backend: :sonic_annotator, step_size: 128)
   class PitchAnalyzerFactory
+    # Create a pitch analyzer instance for the specified backend
+    #
+    # @param backend [Symbol] pitch analysis backend (:aubio or :sonic_annotator)
+    # @param options [Hash] additional options passed to analyzer constructor
+    # @return [PitchAnalyzer] configured pitch analyzer instance
+    # @raise [ArgumentError] if backend is unknown
     def self.create(backend: :aubio, **options)
       case backend
       when :aubio
@@ -727,6 +739,9 @@ module ProsodicTextConverter
       end
     end
 
+    # Get list of available pitch analysis backends on the system
+    #
+    # @return [Array<Symbol>] list of available backends (e.g., [:aubio, :sonic_annotator])
     def self.available_backends
       backends = []
       

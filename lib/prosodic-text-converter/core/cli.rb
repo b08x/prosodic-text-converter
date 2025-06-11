@@ -361,6 +361,9 @@ module ProsodicTextConverter
 
     public
 
+    # List available pitch analysis backends with detailed information
+    #
+    # @return [void]
     def self.list_available_backends
       backends = Converter.available_pitch_backends
       
@@ -402,6 +405,9 @@ module ProsodicTextConverter
       puts "    • macOS: brew install sonic-visualiser (includes sonic-annotator)"
     end
 
+    # Print usage information and command-line help
+    #
+    # @return [void]
     def self.print_usage
       puts <<~USAGE
         Prosodic Text Converter
