@@ -7,7 +7,7 @@ model: "gemini-2.0-flash"
 llm_timeout: 30
 
 # Audio Analysis Configuration  
-pitch_backend: "aubio"
+pitch_backend: "sonic_annotator"
 analysis_timeout: 60
 spectrogram_dir: "./spectrograms"
 
@@ -28,3 +28,9 @@ analyze_only: false
 health_check: false
 list_backends: false
 list_voices: false
+
+# Rephrasing Configuration
+enable_rephrasing: false
+rephrasing_aggressiveness: "medium"  # conservative, medium, aggressive
+preserve_meaning_threshold: 0.8     # semantic similarity threshold (0.0-1.0)
+rephrasing_timeout: 45              # timeout for rephrasing requests (seconds)

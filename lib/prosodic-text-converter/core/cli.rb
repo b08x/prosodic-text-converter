@@ -141,7 +141,8 @@ module ProsodicTextConverter
           provider: config.get(:provider).to_sym,
           model: config.get(:model),
           pitch_backend: config.get(:pitch_backend).to_sym,
-          output_dir: config.get(:output_dir)
+          output_dir: config.get(:output_dir),
+          config: config
         )
       end
     rescue Timeout::Error
@@ -439,11 +440,16 @@ module ProsodicTextConverter
           --pitch-backend=NAME   Pitch analysis backend (aubio, sonic_annotator)
           --analyze-only         Only analyze audio file, don't convert text
           --spectrogram-dir=DIR  Output directory for spectrograms (default: ./spectrograms)
-          --provider=NAME        LLM provider (openai, anthropic, ollama, etc.)
-          --model=NAME           Model name (gpt-4, claude-3-sonnet, etc.)
+          --provider=NAME        LLM provider (openai, anthropic, gemini, openrouter, ollama, etc.)
+          --model=NAME           Model name (gpt-4, claude-3-sonnet, gemini-2.0-flash, etc.)
           --elevenlabs-voice=ID  ElevenLabs voice ID for speech synthesis
           --elevenlabs-model=ID  ElevenLabs model (eleven_monolingual_v1, etc.)
           --output=FILE          Output audio file (when using ElevenLabs)
+          --rephrase             Enable SFL-based text rephrasing for prosodic optimization
+          --no-rephrase          Disable text rephrasing (default)
+          --rephrasing-aggressiveness=LEVEL  Set rephrasing level (conservative, medium, aggressive)
+          --preserve-meaning-threshold=FLOAT  Semantic similarity threshold (0.0-1.0, default: 0.8)
+          --rephrasing-timeout=SECONDS       Timeout for rephrasing requests (default: 45)
           --verbose              Show analysis information
           --list-backends        Show available pitch analysis backends
           --list-voices          Show available ElevenLabs voices
@@ -457,6 +463,8 @@ module ProsodicTextConverter
         Providers (via RubyLLM):
           openai                OpenAI GPT models (requires OPENAI_API_KEY)
           anthropic             Anthropic Claude models (requires ANTHROPIC_API_KEY)
+          gemini                Google Gemini models (requires GEMINI_API_KEY)
+          openrouter            OpenRouter multi-provider access (requires OPENROUTER_API_KEY)
           ollama                Local Ollama models
         #{'  '}
         Pitch Backends:
@@ -478,8 +486,13 @@ module ProsodicTextConverter
           # Basic text conversion
           echo "Hello world" | #{$0}
         #{'  '}
-          # Use predefined pattern
+          # Use predefined pattern with different providers
           #{$0} --pattern=rapid --provider=anthropic input.txt
+          #{$0} --pattern=deliberate --provider=openrouter --model=anthropic/claude-3.5-sonnet input.txt
+        #{'  '}
+          # Enable SFL-based text rephrasing for better prosodic fit
+          #{$0} --rephrase --rephrasing-aggressiveness=medium --provider=gemini input.txt
+          #{$0} --rephrase --preserve-meaning-threshold=0.9 --audio=voice.wav input.txt
         #{'  '}
           # Fast analysis with aubio (recommended for most use cases)
           #{$0} --audio=voice_sample.wav --pitch-backend=aubio input.txt

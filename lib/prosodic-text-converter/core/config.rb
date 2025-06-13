@@ -146,6 +146,34 @@ module ProsodicTextConverter
       Converter.predefined_patterns[pattern_name.to_sym]
     end
 
+    # Check if rephrasing is enabled
+    #
+    # @return [Boolean] true if rephrasing is enabled
+    def rephrasing_enabled?
+      get(:enable_rephrasing, false)
+    end
+
+    # Get rephrasing aggressiveness level
+    #
+    # @return [String] aggressiveness level (conservative, medium, aggressive)
+    def rephrasing_aggressiveness
+      get(:rephrasing_aggressiveness, 'medium')
+    end
+
+    # Get meaning preservation threshold
+    #
+    # @return [Float] threshold value (0.0-1.0)
+    def preserve_meaning_threshold
+      get(:preserve_meaning_threshold, 0.8)
+    end
+
+    # Get rephrasing timeout
+    #
+    # @return [Integer] timeout in seconds
+    def rephrasing_timeout
+      get(:rephrasing_timeout, 45)
+    end
+
     private
 
     # Get default configuration directory
@@ -189,6 +217,16 @@ module ProsodicTextConverter
       @config.set_from_env(:verbose)
       @config.set_from_env(:elevenlabs_model)
       @config.set_from_env(:elevenlabs_voice)
+      @config.set_from_env(:enable_rephrasing)
+      @config.set_from_env(:rephrasing_aggressiveness)
+      @config.set_from_env(:preserve_meaning_threshold)
+      @config.set_from_env(:rephrasing_timeout)
+
+      # Also load API keys for LLM providers  
+      @config.set_from_env(:openai_api_key)
+      @config.set_from_env(:anthropic_api_key)
+      @config.set_from_env(:gemini_api_key)
+      @config.set_from_env(:openrouter_api_key)
 
       # Also support legacy environment variables for backwards compatibility
       set(:provider, ENV['PROSODIC_PROVIDER']) if ENV['PROSODIC_PROVIDER']
@@ -225,6 +263,16 @@ module ProsodicTextConverter
           config_hash[:output_file] = ::Regexp.last_match(1)
         when /^--output-dir=(.+)$/
           config_hash[:output_dir] = ::Regexp.last_match(1)
+        when '--rephrase'
+          config_hash[:enable_rephrasing] = true
+        when '--no-rephrase'
+          config_hash[:enable_rephrasing] = false
+        when /^--rephrasing-aggressiveness=(.+)$/
+          config_hash[:rephrasing_aggressiveness] = ::Regexp.last_match(1)
+        when /^--preserve-meaning-threshold=(.+)$/
+          config_hash[:preserve_meaning_threshold] = ::Regexp.last_match(1).to_f
+        when /^--rephrasing-timeout=(.+)$/
+          config_hash[:rephrasing_timeout] = ::Regexp.last_match(1).to_i
         when '--verbose'
           config_hash[:verbose] = true
         when '--analyze-only'
