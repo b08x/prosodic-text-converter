@@ -86,6 +86,11 @@ module ProsodicTextConverter
       # LLM Provider API Keys
       @prompt.say("\n🤖 Language Model API Keys (at least one required):", color: :blue)
       
+      env_config['OPENROUTER_API_KEY'] = @prompt.ask("Open Router API Key:", 
+        default: ENV['OPENROUTER_API_KEY'],
+        help: "Required for Open Router models",
+        echo: false) { |q| q.required(false) }
+
       env_config['OPENAI_API_KEY'] = @prompt.ask("OpenAI API Key:", 
         default: ENV['OPENAI_API_KEY'],
         help: "Required for GPT models",
@@ -218,6 +223,17 @@ module ProsodicTextConverter
       options[:provider] = @prompt.select("LLM Provider:", available_providers, default: @config.get(:provider))
       
       case options[:provider]
+      when 'openrouter'
+        models = [
+          'openai/gpt-4o',
+          'anthropic/claude-3.5-sonnet',
+          'google/gemini-2.0-flash',
+          'openai/gpt-4-turbo',
+          'anthropic/claude-3-haiku',
+          'meta-llama/llama-3.1-70b-instruct',
+          'mistralai/mistral-7b-instruct'
+        ]
+        options[:model] = @prompt.select("OpenRouter Model:", models, default: 'openai/gpt-4o')
       when 'openai'
         models = %w[gpt-4 gpt-4-turbo gpt-3.5-turbo]
         options[:model] = @prompt.select("OpenAI Model:", models, default: 'gpt-4')
@@ -255,6 +271,32 @@ module ProsodicTextConverter
       # Advanced options
       if @prompt.yes?("Configure advanced options?", default: false)
         options[:verbose] = @prompt.yes?("Verbose output?", default: false)
+        
+        # Rephrasing options
+        @prompt.say("\n🔄 Text Rephrasing (SFL-based prosodic optimization):", color: :cyan)
+        options[:enable_rephrasing] = @prompt.yes?("Enable text rephrasing for better prosodic fit?", 
+          default: @config.rephrasing_enabled?)
+        
+        if options[:enable_rephrasing]
+          options[:rephrasing_aggressiveness] = @prompt.select("Rephrasing aggressiveness:",
+            [
+              { name: "Conservative - Minimal changes, preserve structure", value: "conservative" },
+              { name: "Medium - Moderate restructuring for prosody", value: "medium" },
+              { name: "Aggressive - Significant changes for optimal fit", value: "aggressive" }
+            ],
+            default: @config.rephrasing_aggressiveness)
+          
+          options[:preserve_meaning_threshold] = @prompt.ask("Meaning preservation threshold (0.0-1.0):",
+            default: @config.preserve_meaning_threshold, convert: :float) do |q|
+            q.validate(->(val) { val >= 0.0 && val <= 1.0 })
+            q.messages[:valid?] = "Must be between 0.0 and 1.0"
+          end
+          
+          options[:rephrasing_timeout] = @prompt.ask("Rephrasing timeout (seconds):",
+            default: @config.rephrasing_timeout, convert: :int)
+        end
+        
+        # Other timeouts
         options[:llm_timeout] = @prompt.ask("LLM timeout (seconds):", 
           default: @config.get(:llm_timeout), convert: :int)
         options[:analysis_timeout] = @prompt.ask("Analysis timeout (seconds):", 
@@ -410,6 +452,16 @@ module ProsodicTextConverter
       args << "--llm-timeout=#{options[:llm_timeout]}" if options[:llm_timeout]
       args << "--analysis-timeout=#{options[:analysis_timeout]}" if options[:analysis_timeout]
       
+      # Rephrasing options
+      if options[:enable_rephrasing]
+        args << "--rephrase"
+        args << "--rephrasing-aggressiveness=#{options[:rephrasing_aggressiveness]}" if options[:rephrasing_aggressiveness]
+        args << "--preserve-meaning-threshold=#{options[:preserve_meaning_threshold]}" if options[:preserve_meaning_threshold]
+        args << "--rephrasing-timeout=#{options[:rephrasing_timeout]}" if options[:rephrasing_timeout]
+      else
+        args << "--no-rephrase"
+      end
+      
       args << options[:input_file] if options[:input_file]
       
       args
@@ -430,6 +482,7 @@ module ProsodicTextConverter
       providers << 'openai' if ENV['OPENAI_API_KEY'] && !ENV['OPENAI_API_KEY'].empty? && ENV['OPENAI_API_KEY'] != 'your-openai-api-key-here'
       providers << 'anthropic' if ENV['ANTHROPIC_API_KEY'] && !ENV['ANTHROPIC_API_KEY'].empty? && ENV['ANTHROPIC_API_KEY'] != 'your-anthropic-api-key-here'
       providers << 'gemini' if ENV['GEMINI_API_KEY'] && !ENV['GEMINI_API_KEY'].empty? && ENV['GEMINI_API_KEY'] != 'your-gemini-api-key-here'
+      providers << 'openrouter' if ENV['OPENROUTER_API_KEY'] && !ENV['OPENROUTER_API_KEY'].empty? && ENV['OPENROUTER_API_KEY'] != 'your-openrouter-api-key-here'
       providers << 'ollama' # Always available for local models
       
       # If no valid providers, show all options but warn user
@@ -438,8 +491,8 @@ module ProsodicTextConverter
         @prompt.say("Please either:")
         @prompt.say("  1. Set up API keys via the environment setup")
         @prompt.say("  2. Use Ollama for local models")
-        @prompt.say("  3. Set environment variables manually (OPENAI_API_KEY, GEMINI_API_KEY, etc.)")
-        return %w[ollama gemini openai anthropic]
+        @prompt.say("  3. Set environment variables manually (OPENAI_API_KEY, GEMINI_API_KEY, OPENROUTER_API_KEY, etc.)")
+        return %w[ollama gemini openai anthropic openrouter]
       end
       
       providers
