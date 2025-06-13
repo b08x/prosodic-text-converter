@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-require 'logger'
 
 # FFI-based audio analysis
 begin
@@ -34,18 +33,17 @@ module ProsodicTextConverter
     # @param hop_size [Integer] hop size in samples
     # @param buffer_size [Integer] buffer size in samples
     # @param sample_rate [Integer] sample rate in Hz
-    # @param logger [Logger, nil] custom logger instance
-    def initialize(algorithm: 'yin', hop_size: 512, buffer_size: 1024, sample_rate: 44_100, logger: nil)
-      super(logger: logger)
+    def initialize(algorithm: 'yin', hop_size: 512, buffer_size: 1024, sample_rate: 44_100)
+      super()
       @algorithm = algorithm
       @hop_size = hop_size
       @buffer_size = buffer_size
       @sample_rate = sample_rate
 
       begin
-        @logger.info("Aubio analyzer initialized (#{@algorithm}, hop: #{@hop_size}, buffer: #{@buffer_size})")
+        logger.info("Aubio analyzer initialized (#{@algorithm}, hop: #{@hop_size}, buffer: #{@buffer_size})")
       rescue StandardError => e
-        @logger.error("Failed to initialize Aubio analyzer: #{e.message}")
+        logger.error("Failed to initialize Aubio analyzer: #{e.message}")
         raise
       end
     end
@@ -60,7 +58,7 @@ module ProsodicTextConverter
       validate_audio_file(audio_file)
 
       begin
-        @logger.info("Starting FFI Aubio pitch analysis: #{File.basename(audio_file)}")
+        logger.info("Starting FFI Aubio pitch analysis: #{File.basename(audio_file)}")
         start_time = Time.now
 
         pitch_data = []
@@ -93,20 +91,20 @@ module ProsodicTextConverter
         end
 
         analysis_time = Time.now - start_time
-        @logger.info("FFI Aubio analysis completed in #{analysis_time.round(2)}s, #{pitch_data.length} data points")
+        logger.info("FFI Aubio analysis completed in #{analysis_time.round(2)}s, #{pitch_data.length} data points")
 
         if pitch_data.empty?
-          @logger.warn('No valid pitch data extracted from audio')
+          logger.warn('No valid pitch data extracted from audio')
         else
           freq_range = pitch_data.map { |p| p[:frequency] }
-          @logger.debug("Frequency range: #{freq_range.min.round(1)}-#{freq_range.max.round(1)} Hz")
+          logger.debug("Frequency range: #{freq_range.min.round(1)}-#{freq_range.max.round(1)} Hz")
         end
 
         pitch_data
       rescue StandardError => e
         error_msg = "FFI Aubio analysis failed: #{e.message}"
-        @logger.error(error_msg)
-        @logger.debug("Backtrace: #{e.backtrace.join("\n")}")
+        logger.error(error_msg)
+        logger.debug("Backtrace: #{e.backtrace.join("\n")}")
         raise error_msg.to_s
       end
     end

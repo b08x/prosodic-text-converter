@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'mini_magick'
+require_relative '../core/logging'
 require_relative '../audio/pitch_analyzer'
 require_relative 'prosodic_pattern'
 
@@ -14,6 +15,7 @@ module ProsodicTextConverter
   #   analyzer = SpectrogramAnalyzer.new(pitch_backend: :aubio)
   #   analysis = analyzer.analyze('voice_spectrogram.png')
   class SpectrogramAnalyzer
+    include Logging
     # Initialize spectrogram analyzer with pitch backend
     #
     # @param pitch_backend [Symbol] pitch analysis backend (:aubio or :sonic_annotator)

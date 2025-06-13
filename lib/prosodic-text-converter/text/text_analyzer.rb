@@ -2,11 +2,13 @@
 
 require 'lingua'
 require 'pragmatic_tokenizer'
+require_relative '../core/logging'
 
 module ProsodicTextConverter
   # Text preprocessing and basic segmentation
   # Provides clean, structured text input for LLM prosodic analysis
   class TextAnalyzer
+    include Logging
     # Initialize the text analyzer
     #
     # @param language [Symbol] language code for lingua (default: :en)
@@ -25,7 +27,7 @@ module ProsodicTextConverter
     # @return [Hash] structured text data with sentences, words, and metadata
     def analyze(text)
       sentences = segment_sentences(text)
-      
+
       {
         original_text: text,
         language: @language,
@@ -60,7 +62,7 @@ module ProsodicTextConverter
     # @return [Hash] sentence analysis data
     def analyze_sentence(sentence, index)
       words = @tokenizer.tokenize(sentence)
-      
+
       {
         index: index,
         text: sentence.strip,
@@ -73,7 +75,7 @@ module ProsodicTextConverter
 
     # Analyze individual word properties
     #
-    # @param word [String] word to analyze  
+    # @param word [String] word to analyze
     # @return [Hash] word analysis data
     def analyze_word(word)
       {
@@ -119,19 +121,19 @@ module ProsodicTextConverter
     # @return [Array<String>] pause indicator types found
     def detect_pause_indicators(sentence)
       indicators = []
-      
+
       # Coordinating conjunctions (and, but, or)
       indicators << 'conjunction' if sentence.match?(/\b(and|but|or|yet|so)\b/i)
-      
+
       # Subordinating conjunctions (because, although, when)
       indicators << 'subordination' if sentence.match?(/\b(because|although|when|while|if|since)\b/i)
-      
+
       # Discourse markers (however, therefore, meanwhile)
       indicators << 'discourse_marker' if sentence.match?(/\b(however|therefore|meanwhile|furthermore|moreover)\b/i)
-      
+
       # Parenthetical expressions
       indicators << 'parenthetical' if sentence.match?(/\([^)]+\)/)
-      
+
       indicators.uniq
     end
 

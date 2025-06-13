@@ -2,7 +2,6 @@
 
 require 'open3'
 require 'fileutils'
-require 'logger'
 require 'timeout'
 
 # RDF parsing for Sonic Annotator
@@ -33,23 +32,22 @@ module ProsodicTextConverter
     # @param plugin [String] Vamp plugin identifier
     # @param step_size [Integer] step size in samples
     # @param block_size [Integer] block size in samples
-    # @param logger [Logger, nil] custom logger instance
     # @raise [RuntimeError] if sonic-annotator is not available
-    def initialize(plugin: 'pyin:pyin:f0candidates', step_size: 256, block_size: 2048, logger: nil)
-      super(logger: logger)
+    def initialize(plugin: 'pyin:pyin:f0candidates', step_size: 256, block_size: 2048)
+      super()
       @plugin = plugin
       @step_size = step_size
       @block_size = block_size
       @transform_dir = File.join(File.dirname(__FILE__), '..', '..', '..', 'transforms')
 
       begin
-        @logger.info("Initializing Sonic Annotator analyzer (#{@plugin})")
+        logger.info("Initializing Sonic Annotator analyzer (#{@plugin})")
         ensure_transform_directory
         ensure_all_transforms
         validate_dependencies
-        @logger.info('Sonic Annotator analyzer initialized successfully')
+        logger.info('Sonic Annotator analyzer initialized successfully')
       rescue StandardError => e
-        @logger.error("Failed to initialize Sonic Annotator analyzer: #{e.message}")
+        logger.error("Failed to initialize Sonic Annotator analyzer: #{e.message}")
         raise
       end
     end
@@ -64,36 +62,36 @@ module ProsodicTextConverter
       validate_audio_file(audio_file)
 
       begin
-        @logger.info("Starting Sonic Annotator RDF analysis: #{File.basename(audio_file)}")
+        logger.info("Starting Sonic Annotator RDF analysis: #{File.basename(audio_file)}")
         start_time = Time.now
 
         # Extract pitch data with timeout using RDF output
         pitch_data = Timeout.timeout(300) do # 5 minute timeout
           extract_pitch_data_rdf(audio_file)
         end
-        @logger.debug("Pitch extraction completed, #{pitch_data.length} data points")
+        logger.debug("Pitch extraction completed, #{pitch_data.length} data points")
 
         # Extract tempo data with timeout (optional, non-failing)
         tempo_data = Timeout.timeout(180) do # 3 minute timeout
           extract_tempo_data_rdf(audio_file)
         end
-        @logger.debug("Tempo extraction completed, #{tempo_data.length} data points")
+        logger.debug("Tempo extraction completed, #{tempo_data.length} data points")
 
         # Combine results for comprehensive prosodic analysis
         result = combine_analysis_results(pitch_data, tempo_data)
 
         analysis_time = Time.now - start_time
-        @logger.info("Sonic Annotator RDF analysis completed in #{analysis_time.round(2)}s")
+        logger.info("Sonic Annotator RDF analysis completed in #{analysis_time.round(2)}s")
 
         result
       rescue Timeout::Error
         error_msg = 'Sonic Annotator analysis timed out'
-        @logger.error(error_msg)
+        logger.error(error_msg)
         raise error_msg.to_s
       rescue StandardError => e
         error_msg = "Sonic Annotator analysis failed: #{e.message}"
-        @logger.error(error_msg)
-        @logger.debug("Backtrace: #{e.backtrace.join("\n")}")
+        logger.error(error_msg)
+        logger.debug("Backtrace: #{e.backtrace.join("\n")}")
         raise error_msg.to_s
       end
     end
@@ -107,7 +105,7 @@ module ProsodicTextConverter
     # @raise [RuntimeError] if extraction fails
     def extract_pitch_data_rdf(audio_file)
       transform_file = create_pyin_transform
-      @logger.debug('Running pYIN pitch analysis with RDF output')
+      logger.debug('Running pYIN pitch analysis with RDF output')
 
       # Use RDF output format instead of CSV
       stdout, stderr, status = Open3.capture3(
@@ -119,15 +117,15 @@ module ProsodicTextConverter
 
       unless status.success?
         error_msg = "Sonic Annotator pitch analysis failed: #{stderr.strip}"
-        @logger.error(error_msg)
+        logger.error(error_msg)
         raise error_msg.to_s
       end
 
       pitch_data = parse_rdf_output(stdout)
-      @logger.debug("Extracted #{pitch_data.length} pitch data points from RDF")
+      logger.debug("Extracted #{pitch_data.length} pitch data points from RDF")
       pitch_data
     rescue StandardError => e
-      @logger.error("Failed to extract pitch data: #{e.message}")
+      logger.error("Failed to extract pitch data: #{e.message}")
       raise "Pitch data extraction failed: #{e.message}"
     end
 
@@ -137,7 +135,7 @@ module ProsodicTextConverter
     # @return [Array<Hash>] tempo analysis data
     def extract_tempo_data_rdf(audio_file)
       transform_file = create_tempo_transform
-      @logger.debug('Running tempo/rhythm analysis with RDF output')
+      logger.debug('Running tempo/rhythm analysis with RDF output')
 
       stdout, stderr, status = Open3.capture3(
         'sonic-annotator', '-q',
@@ -148,15 +146,15 @@ module ProsodicTextConverter
 
       # Don't fail if tempo analysis fails - it's supplementary
       unless status.success?
-        @logger.warn("Tempo analysis failed (optional): #{stderr.strip}")
+        logger.warn("Tempo analysis failed (optional): #{stderr.strip}")
         return []
       end
 
       tempo_data = parse_tempo_rdf_output(stdout)
-      @logger.debug("Extracted #{tempo_data.length} tempo data points from RDF")
+      logger.debug("Extracted #{tempo_data.length} tempo data points from RDF")
       tempo_data
     rescue StandardError => e
-      @logger.warn("Failed to extract tempo data (optional): #{e.message}")
+      logger.warn("Failed to extract tempo data (optional): #{e.message}")
       [] # Return empty array for optional analysis
     end
 
@@ -170,21 +168,21 @@ module ProsodicTextConverter
 
       unless status.success?
         error_msg = 'Sonic Annotator not found. Install from: https://vamp-plugins.org/sonic-annotator/'
-        @logger.error(error_msg)
+        logger.error(error_msg)
         raise error_msg.to_s
       end
 
-      @logger.debug('Sonic Annotator found')
+      logger.debug('Sonic Annotator found')
 
       # Check for required Vamp plugins
       check_vamp_plugins
     rescue Timeout::Error
       error_msg = 'Timeout checking for Sonic Annotator installation'
-      @logger.error(error_msg)
+      logger.error(error_msg)
       raise error_msg.to_s
     rescue StandardError => e
       error_msg = "Error checking Sonic Annotator installation: #{e.message}"
-      @logger.error(error_msg)
+      logger.error(error_msg)
       raise error_msg.to_s
     end
 
@@ -197,7 +195,7 @@ module ProsodicTextConverter
       end
 
       unless status.success?
-        @logger.warn("Could not list Vamp plugins: #{stderr.strip}")
+        logger.warn("Could not list Vamp plugins: #{stderr.strip}")
         return
       end
 
@@ -209,15 +207,15 @@ module ProsodicTextConverter
       end
 
       if missing_plugins.empty?
-        @logger.debug('All required Vamp plugins found')
+        logger.debug('All required Vamp plugins found')
       else
-        @logger.warn("Missing Vamp plugins: #{missing_plugins.join(', ')}")
-        @logger.warn('Install with your package manager or from: https://vamp-plugins.org/')
+        logger.warn("Missing Vamp plugins: #{missing_plugins.join(', ')}")
+        logger.warn('Install with your package manager or from: https://vamp-plugins.org/')
       end
     rescue Timeout::Error
-      @logger.warn('Timeout checking Vamp plugins')
+      logger.warn('Timeout checking Vamp plugins')
     rescue StandardError => e
-      @logger.warn("Error checking Vamp plugins: #{e.message}")
+      logger.warn("Error checking Vamp plugins: #{e.message}")
     end
 
     # Parse RDF output for pitch data
@@ -272,7 +270,7 @@ module ProsodicTextConverter
         # Sort by timestamp
         pitch_data.sort_by! { |point| point[:timestamp] }
       rescue StandardError => e
-        @logger.error("Error parsing RDF output: #{e.message}")
+        logger.error("Error parsing RDF output: #{e.message}")
         # Fallback to empty array
         pitch_data = []
       end
@@ -328,7 +326,7 @@ module ProsodicTextConverter
         # Sort by timestamp
         tempo_data.sort_by! { |point| point[:timestamp] }
       rescue StandardError => e
-        @logger.error("Error parsing tempo RDF output: #{e.message}")
+        logger.error("Error parsing tempo RDF output: #{e.message}")
         tempo_data = []
       end
 
@@ -340,10 +338,10 @@ module ProsodicTextConverter
     # @raise [RuntimeError] if directory cannot be created
     def ensure_transform_directory
       FileUtils.mkdir_p(@transform_dir)
-      @logger.debug("Transform directory ensured: #{@transform_dir}")
+      logger.debug("Transform directory ensured: #{@transform_dir}")
     rescue StandardError => e
       error_msg = "Cannot create transform directory #{@transform_dir}: #{e.message}"
-      @logger.error(error_msg)
+      logger.error(error_msg)
       raise error_msg.to_s
     end
 

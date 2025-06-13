@@ -35,24 +35,18 @@ module ProsodicTextConverter
     # @raise [RuntimeError] if audio file not found or generation fails
     def generate(audio_file, output_dir: './spectrograms')
       FileUtils.mkdir_p(output_dir)
-      
-      unless File.exist?(audio_file)
-        raise "Audio file not found: #{audio_file}"
-      end
+
+      raise "Audio file not found: #{audio_file}" unless File.exist?(audio_file)
 
       output_file = File.join(output_dir, "#{File.basename(audio_file, '.*')}_spectrogram.png")
-      
+
       command = build_sox_command(audio_file, output_file)
       stdout, stderr, status = Open3.capture3(*command)
-      
-      unless status.success?
-        raise "Spectrogram generation failed: #{stderr}"
-      end
-      
-      unless File.exist?(output_file)
-        raise "Expected spectrogram file not found: #{output_file}"
-      end
-      
+
+      raise "Spectrogram generation failed: #{stderr}" unless status.success?
+
+      raise "Expected spectrogram file not found: #{output_file}" unless File.exist?(output_file)
+
       {
         input_file: audio_file,
         spectrogram_file: output_file,
@@ -67,10 +61,10 @@ module ProsodicTextConverter
     #
     # @raise [RuntimeError] if SoX is not found
     def validate_dependencies
-      stdout, stderr, status = Open3.capture3('which', 'sox')
-      unless status.success?
-        raise "SoX not found. Please install SoX: apt-get install sox (Linux) or brew install sox (macOS)"
-      end
+      _, _, status = Open3.capture3('which', 'sox')
+      return if status.success?
+
+      raise 'SoX not found. Please install SoX: apt-get install sox (Linux) or brew install sox (macOS)'
     end
 
     # Build SoX command for spectrogram generation
@@ -80,7 +74,7 @@ module ProsodicTextConverter
     # @return [Array<String>] command arguments for SoX
     def build_sox_command(audio_file, output_file)
       title = "Prosody Spectrogram: #{File.basename(audio_file)}"
-      
+
       [
         'sox',
         audio_file,

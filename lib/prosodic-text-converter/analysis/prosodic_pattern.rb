@@ -26,8 +26,8 @@ module ProsodicTextConverter
     # @param pause_duration [Float] duration of pauses between segments in seconds
     # @param pitch_variation [Integer] pitch variation percentage (1-15)
     # @param rate [String] speaking rate ('slow', 'medium', 'fast')
-    def initialize(name:, segment_duration: 1.0, pause_duration: 0.35, 
-                  pitch_variation: 5, rate: 'medium')
+    def initialize(name:, segment_duration: 1.0, pause_duration: 0.35,
+                   pitch_variation: 5, rate: 'medium')
       @name = name
       @segment_duration = segment_duration
       @pause_duration = pause_duration

@@ -1,24 +1,33 @@
 # frozen_string_literal: true
 
 require 'ruby_llm'
-require 'logger'
 require 'timeout'
+require_relative '../core/logging'
 require_relative '../analysis/prosodic_pattern'
 
-RubyLLM.configure do |config|
-  config.openai_api_key = ENV.fetch('OPENAI_API_KEY', nil)
-  config.gemini_api_key = ENV.fetch('GEMINI_API_KEY', nil)
-  config.openai_api_base = ENV.fetch('OPENAI_API_BASE', nil)
-  config.default_model = 'gemini-2.0-flash'
-  config.default_embedding_model = 'text-embedding-004'
-  config.default_image_model = 'imagen-3.0-generate-002'
-  config.request_timeout = 120
-  config.max_retries = 3
-  config.retry_interval = 0.5
-  config.retry_backoff_factor = 2
-  config.retry_interval_randomness = 0.5
+module ProsodicTextConverter
+  # Configure RubyLLM with environment variables
+  # This initialization ensures API keys are loaded from the environment
+  def self.configure_llm
+    RubyLLM.configure do |config|
+      config.openai_api_key = ENV.fetch('OPENAI_API_KEY', nil)
+      config.gemini_api_key = ENV.fetch('GEMINI_API_KEY', nil)
+      config.anthropic_api_key = ENV.fetch('ANTHROPIC_API_KEY', nil)
+      config.openai_api_base = ENV.fetch('OPENAI_API_BASE', nil)
+      config.default_model = 'gemini-2.0-flash'
+      config.default_embedding_model = 'text-embedding-004'
+      config.default_image_model = 'imagen-3.0-generate-002'
+      config.request_timeout = 120
+      config.max_retries = 3
+      config.retry_interval = 0.5
+      config.retry_backoff_factor = 2
+      config.retry_interval_randomness = 0.5
+    end
+  end
 end
 
+# Initialize LLM configuration
+ProsodicTextConverter.configure_llm
 
 module ProsodicTextConverter
   # Language model interface using RubyLLM for text-to-SSML conversion
@@ -27,50 +36,46 @@ module ProsodicTextConverter
   #   converter = LLMConverter.new(provider: :gemini, model: 'gemini-2.0-flash')
   #   ssml = converter.convert_text("Hello world", pattern, chunks)
   class LLMConverter
+    include Logging
+    
     # @return [Symbol] LLM provider
     attr_reader :provider
-    
+
     # @return [String] model name
     attr_reader :model
-    
-    # @return [Logger] logger instance
-    attr_reader :logger
 
     # Initialize LLM converter
     #
     # @param provider [Symbol] LLM provider (:gemini, :openai, :anthropic, etc.)
     # @param model [String] model name
-    # @param logger [Logger, nil] custom logger instance
     # @param options [Hash] additional options for LLM client
     # @raise [RuntimeError] if initialization fails
-    def initialize(provider: :gemini, model: 'gemini-2.0-flash', logger: nil, **options)
+    def initialize(provider: :gemini, model: 'gemini-2.0-flash', **options)
       @provider = provider
       @model = model
       @options = options
-      @logger = logger || setup_logger
-      
+
       begin
-        @logger.info("Initializing LLM converter with #{@provider}:#{@model}")
-        
+        logger.info("Initializing LLM converter with #{@provider}:#{@model}")
+
         # Validate provider and model
         validate_configuration
-        
+
         # Initialize client with timeout
         @client = Timeout.timeout(30) do
           RubyLLM.chat(provider: @provider, **@options)
         end
-        
-        @logger.info("LLM converter initialized successfully")
-        
+
+        logger.info('LLM converter initialized successfully')
       rescue Timeout::Error
-        error_msg = "Timeout initializing LLM client"
-        @logger.error(error_msg)
-        raise RuntimeError, error_msg
+        error_msg = 'Timeout initializing LLM client'
+        logger.error(error_msg)
+        raise error_msg.to_s
       rescue StandardError => e
         error_msg = "Failed to initialize LLM converter: #{e.message}"
-        @logger.error(error_msg)
-        @logger.debug("Backtrace: #{e.backtrace.join("\n")}")
-        raise RuntimeError, error_msg
+        logger.error(error_msg)
+        logger.debug("Backtrace: #{e.backtrace.join("\n")}")
+        raise error_msg.to_s
       end
     end
 
@@ -83,45 +88,44 @@ module ProsodicTextConverter
     # @raise [RuntimeError] if conversion fails
     def convert_text_with_analysis(text_analysis, pattern)
       validate_analysis_inputs(text_analysis, pattern)
-      
+
       begin
         text = text_analysis[:original_text]
-        @logger.info("Converting text to SSML (#{text.length} chars, #{text_analysis[:sentence_count]} sentences)")
+        logger.info("Converting text to SSML (#{text.length} chars, #{text_analysis[:sentence_count]} sentences)")
         start_time = Time.now
-        
+
         # Build prompts with structured analysis
         system_prompt = build_system_prompt
         user_prompt = build_analysis_conversion_prompt(text_analysis, pattern)
-        
-        @logger.debug("Sending request to #{@provider}:#{@model}")
-        
+
+        logger.debug("Sending request to #{@provider}:#{@model}")
+
         # Make LLM request with timeout and retries
         response = with_retries(max_attempts: 3) do
-          Timeout.timeout(90) do  # 90 second timeout for LLM
+          Timeout.timeout(90) do # 90 second timeout for LLM
             # Combine system and user prompts for simplicity
             full_prompt = "#{system_prompt}\n\n#{user_prompt}"
             @client.with_model(@model).with_temperature(0.3).ask(full_prompt)
           end
         end
-        
+
         # Extract content from response
         ssml_content = extract_response_content(response)
-        
+
         conversion_time = Time.now - start_time
-        @logger.info("LLM conversion completed in #{conversion_time.round(2)}s")
-        @logger.debug("Generated SSML length: #{ssml_content.length} chars")
-        
+        logger.info("LLM conversion completed in #{conversion_time.round(2)}s")
+        logger.debug("Generated SSML length: #{ssml_content.length} chars")
+
         ssml_content
-        
-      rescue Timeout::Error => e
-        error_msg = "LLM conversion timed out after 90 seconds"
-        @logger.error(error_msg)
-        raise RuntimeError, error_msg
+      rescue Timeout::Error
+        error_msg = 'LLM conversion timed out after 90 seconds'
+        logger.error(error_msg)
+        raise error_msg.to_s
       rescue StandardError => e
         error_msg = "LLM conversion failed: #{e.message}"
-        @logger.error(error_msg)
-        @logger.debug("Backtrace: #{e.backtrace.join("\n")}")
-        raise RuntimeError, error_msg
+        logger.error(error_msg)
+        logger.debug("Backtrace: #{e.backtrace.join("\n")}")
+        raise error_msg.to_s
       end
     end
 
@@ -135,20 +139,20 @@ module ProsodicTextConverter
     # @raise [RuntimeError] if conversion fails
     def convert_text(text, pattern, chunks)
       validate_inputs(text, pattern, chunks)
-      
+
       begin
-        @logger.info("Converting text to SSML (#{text.length} chars, #{chunks.length} chunks)")
+        logger.info("Converting text to SSML (#{text.length} chars, #{chunks.length} chunks)")
         start_time = Time.now
-        
+
         # Build prompts
         system_prompt = build_system_prompt
         user_prompt = build_conversion_prompt(text, pattern, chunks)
-        
-        @logger.debug("Sending request to #{@provider}:#{@model}")
-        
+
+        logger.debug("Sending request to #{@provider}:#{@model}")
+
         # Make LLM request with timeout and retries
         response = with_retries(max_attempts: 3) do
-          Timeout.timeout(90) do  # 90 second timeout for LLM
+          Timeout.timeout(90) do # 90 second timeout for LLM
             @client.chat(
               model: @model,
               messages: [
@@ -160,59 +164,46 @@ module ProsodicTextConverter
             )
           end
         end
-        
+
         # Extract content from response
         ssml_content = extract_response_content(response)
-        
+
         conversion_time = Time.now - start_time
-        @logger.info("LLM conversion completed in #{conversion_time.round(2)}s")
-        @logger.debug("Generated SSML length: #{ssml_content.length} chars")
-        
+        logger.info("LLM conversion completed in #{conversion_time.round(2)}s")
+        logger.debug("Generated SSML length: #{ssml_content.length} chars")
+
         ssml_content
-        
-      rescue Timeout::Error => e
-        error_msg = "LLM conversion timed out after 90 seconds"
-        @logger.error(error_msg)
-        raise RuntimeError, error_msg
+      rescue Timeout::Error
+        error_msg = 'LLM conversion timed out after 90 seconds'
+        logger.error(error_msg)
+        raise error_msg.to_s
       rescue StandardError => e
         error_msg = "LLM conversion failed: #{e.message}"
-        @logger.error(error_msg)
-        @logger.debug("Backtrace: #{e.backtrace.join("\n")}")
-        raise RuntimeError, error_msg
+        logger.error(error_msg)
+        logger.debug("Backtrace: #{e.backtrace.join("\n")}")
+        raise error_msg.to_s
       end
     end
 
     private
-
-    # Setup logger instance
-    #
-    # @return [Logger] configured logger
-    def setup_logger
-      Logger.new($stderr).tap do |log|
-        log.level = Logger::INFO
-        log.formatter = proc do |severity, datetime, progname, msg|
-          "[#{datetime.strftime('%Y-%m-%d %H:%M:%S')}] LLMConverter #{severity}: #{msg}\n"
-        end
-      end
-    end
 
     # Validate configuration parameters
     #
     # @raise [ArgumentError] if configuration is invalid
     def validate_configuration
       unless @provider.is_a?(Symbol) && !@provider.to_s.empty?
-        error_msg = "Provider must be a non-empty symbol"
-        @logger.error(error_msg)
+        error_msg = 'Provider must be a non-empty symbol'
+        logger.error(error_msg)
         raise ArgumentError, error_msg
       end
-      
+
       unless @model.is_a?(String) && !@model.strip.empty?
-        error_msg = "Model must be a non-empty string"
-        @logger.error(error_msg)
+        error_msg = 'Model must be a non-empty string'
+        logger.error(error_msg)
         raise ArgumentError, error_msg
       end
-      
-      @logger.debug("Configuration validated: #{@provider}:#{@model}")
+
+      logger.debug("Configuration validated: #{@provider}:#{@model}")
     end
 
     # Validate convert_text inputs
@@ -223,22 +214,22 @@ module ProsodicTextConverter
     # @raise [ArgumentError] if inputs are invalid
     def validate_inputs(text, pattern, chunks)
       if text.nil? || text.strip.empty?
-        error_msg = "Text cannot be nil or empty"
-        @logger.error(error_msg)
+        error_msg = 'Text cannot be nil or empty'
+        logger.error(error_msg)
         raise ArgumentError, error_msg
       end
-      
+
       unless pattern.respond_to?(:segment_duration) && pattern.respond_to?(:pause_duration)
-        error_msg = "Pattern must respond to segment_duration and pause_duration"
-        @logger.error(error_msg)
+        error_msg = 'Pattern must respond to segment_duration and pause_duration'
+        logger.error(error_msg)
         raise ArgumentError, error_msg
       end
-      
-      unless chunks.is_a?(Array) && !chunks.empty?
-        error_msg = "Chunks must be a non-empty array"
-        @logger.error(error_msg)
-        raise ArgumentError, error_msg
-      end
+
+      return if chunks.is_a?(Array) && !chunks.empty?
+
+      error_msg = 'Chunks must be a non-empty array'
+      logger.error(error_msg)
+      raise ArgumentError, error_msg
     end
 
     # Validate convert_text_with_analysis inputs
@@ -248,29 +239,29 @@ module ProsodicTextConverter
     # @raise [ArgumentError] if inputs are invalid
     def validate_analysis_inputs(text_analysis, pattern)
       unless text_analysis.is_a?(Hash) && text_analysis[:original_text]
-        error_msg = "Text analysis must be a hash with :original_text key"
-        @logger.error(error_msg)
+        error_msg = 'Text analysis must be a hash with :original_text key'
+        logger.error(error_msg)
         raise ArgumentError, error_msg
       end
-      
+
       text = text_analysis[:original_text]
       if text.nil? || text.strip.empty?
-        error_msg = "Original text in analysis cannot be nil or empty"
-        @logger.error(error_msg)
+        error_msg = 'Original text in analysis cannot be nil or empty'
+        logger.error(error_msg)
         raise ArgumentError, error_msg
       end
-      
+
       unless pattern.respond_to?(:segment_duration) && pattern.respond_to?(:pause_duration)
-        error_msg = "Pattern must respond to segment_duration and pause_duration"
-        @logger.error(error_msg)
+        error_msg = 'Pattern must respond to segment_duration and pause_duration'
+        logger.error(error_msg)
         raise ArgumentError, error_msg
       end
-      
-      unless text_analysis[:sentences].is_a?(Array) && !text_analysis[:sentences].empty?
-        error_msg = "Text analysis must contain non-empty sentences array"
-        @logger.error(error_msg)
-        raise ArgumentError, error_msg
-      end
+
+      return if text_analysis[:sentences].is_a?(Array) && !text_analysis[:sentences].empty?
+
+      error_msg = 'Text analysis must contain non-empty sentences array'
+      logger.error(error_msg)
+      raise ArgumentError, error_msg
     end
 
     # Retry mechanism for LLM requests
@@ -282,27 +273,27 @@ module ProsodicTextConverter
     def with_retries(max_attempts: 3)
       attempt = 0
       last_error = nil
-      
+
       while attempt < max_attempts
         attempt += 1
-        
+
         begin
           return yield
         rescue StandardError => e
           last_error = e
-          @logger.warn("LLM request attempt #{attempt}/#{max_attempts} failed: #{e.message}")
-          
+          logger.warn("LLM request attempt #{attempt}/#{max_attempts} failed: #{e.message}")
+
           if attempt < max_attempts
-            sleep_time = 2 ** attempt  # Exponential backoff
-            @logger.debug("Retrying in #{sleep_time} seconds...")
+            sleep_time = 2**attempt # Exponential backoff
+            logger.debug("Retrying in #{sleep_time} seconds...")
             sleep(sleep_time)
           end
         end
       end
-      
+
       error_msg = "All #{max_attempts} LLM request attempts failed. Last error: #{last_error.message}"
-      @logger.error(error_msg)
-      raise RuntimeError, error_msg
+      logger.error(error_msg)
+      raise error_msg.to_s
     end
 
     # Extract content from LLM response
@@ -312,22 +303,22 @@ module ProsodicTextConverter
     # @raise [RuntimeError] if content extraction fails
     def extract_response_content(response)
       # Handle different response types
-      case response
-      when String
-        content = response
-      when RubyLLM::Message
-        content = response.content || response.to_s
-      else
-        # Fallback for hash responses
-        content = response.dig('content') || response.dig('message', 'content') || response.to_s
-      end
-      
+      content = case response
+                when String
+                  response
+                when RubyLLM::Message
+                  response.content || response.to_s
+                else
+                  # Fallback for hash responses
+                  response.dig('content') || response.dig('message', 'content') || response.to_s
+                end
+
       if content.nil? || content.strip.empty?
         error_msg = "No content found in LLM response: #{response.inspect}"
-        @logger.error(error_msg)
-        raise RuntimeError, error_msg
+        logger.error(error_msg)
+        raise error_msg.to_s
       end
-      
+
       # Clean up markdown formatting if present
       content = content.strip
       content = content.gsub(/^```(?:xml|ssml)?\s*\n?/, '').gsub(/\n?```\s*$/, '')
@@ -339,9 +330,9 @@ module ProsodicTextConverter
     # @return [String] system prompt
     def build_system_prompt
       <<~SYSTEM
-        You are an expert in speech synthesis and prosodic text formatting. 
+        You are an expert in speech synthesis and prosodic text formatting.#{' '}
         Your task is to convert regular text into SSML format that matches specific prosodic patterns.
-        
+
         Always:
         - Maintain the original meaning and intent
         - Use proper SSML syntax with <prosody> and <break> tags
@@ -397,15 +388,15 @@ module ProsodicTextConverter
     def build_analysis_conversion_prompt(text_analysis, pattern)
       text = text_analysis[:original_text]
       sentences = text_analysis[:sentences]
-      
+
       # Build sentence analysis summary
       sentence_summary = sentences.map do |sent|
         pause_hints = sent[:pause_indicators].join(', ') if sent[:pause_indicators].any?
         syllables = sent[:words].sum { |w| w[:syllable_count] }
         "Sentence #{sent[:index] + 1}: #{sent[:word_count]} words, #{syllables} syllables" +
-          (pause_hints ? " (#{pause_hints})" : "")
+          (pause_hints ? " (#{pause_hints})" : '')
       end.join("\n")
-      
+
       <<~PROMPT
         Convert this text to match the specified prosodic pattern for text-to-speech synthesis.
         Use the detailed linguistic analysis to make intelligent prosodic decisions.
@@ -423,7 +414,7 @@ module ProsodicTextConverter
         - Language: #{text_analysis[:language]}
         - Total sentences: #{text_analysis[:sentence_count]}
         - Total syllables: #{sentences.sum { |s| s[:words].sum { |w| w[:syllable_count] } }}
-        
+
         #{sentence_summary}
 
         PROSODIC CONSIDERATIONS:
