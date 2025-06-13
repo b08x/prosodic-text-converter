@@ -25,3 +25,9 @@ gem "reline", "~> 0.6.1"
 gem "pragmatic_segmenter", "~> 0.3.24"
 
 gem "lingua", "~> 0.6.2"
+
+# RDF parsing for structured Sonic Annotator output
+gem "rdf", "~> 3.3"
+gem "rdf-turtle", "~> 3.3"
+
+gem "aubio", "~> 0.3.6"
