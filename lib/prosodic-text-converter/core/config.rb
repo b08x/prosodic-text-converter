@@ -223,6 +223,8 @@ module ProsodicTextConverter
           config_hash[:elevenlabs_model] = ::Regexp.last_match(1)
         when /^--output=(.+)$/
           config_hash[:output_file] = ::Regexp.last_match(1)
+        when /^--output-dir=(.+)$/
+          config_hash[:output_dir] = ::Regexp.last_match(1)
         when '--verbose'
           config_hash[:verbose] = true
         when '--analyze-only'

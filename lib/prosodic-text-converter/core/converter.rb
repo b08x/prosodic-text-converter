@@ -39,8 +39,9 @@ module ProsodicTextConverter
     # @raise [ArgumentError] if required dependencies are missing
     # @raise [RuntimeError] if initialization fails
     def initialize(pattern: nil, provider: :gemini, model: 'gemini-2.0-flash', pitch_backend: :aubio,
-                   **llm_options)
+                   output_dir: './output', **llm_options)
       @pitch_backend = pitch_backend
+      @output_dir = output_dir
 
       begin
         logger.info("Initializing Converter with provider: #{provider}, model: #{model}, backend: #{pitch_backend}")
@@ -125,7 +126,8 @@ module ProsodicTextConverter
     # @return [Hash] audio analysis results and extracted pattern
     # @raise [ArgumentError] if audio file is invalid
     # @raise [RuntimeError] if analysis fails
-    def extract_pattern_from_audio(audio_file, output_dir: './spectrograms')
+    def extract_pattern_from_audio(audio_file, output_dir: nil)
+      output_dir ||= @output_dir
       validate_audio_file(audio_file)
       validate_output_directory(output_dir)
 
@@ -152,13 +154,18 @@ module ProsodicTextConverter
         analysis_time = Time.now - start_time
         logger.info("Audio analysis completed in #{analysis_time.round(2)}s")
 
+        # Save pitch data to output directory
+        pitch_data_files = save_pitch_data(analysis_result, output_dir, audio_file)
+        logger.debug("Pitch data saved to: #{pitch_data_files.values.join(', ')}")
+
         {
           audio_file: audio_file,
           spectrogram_file: spectrogram_result[:spectrogram_file],
           analysis: analysis_result,
           extracted_pattern: @pattern.to_h,
           pitch_backend_used: @pitch_backend,
-          analysis_time: analysis_time
+          analysis_time: analysis_time,
+          pitch_data_files: pitch_data_files
         }
       rescue Timeout::Error => e
         error_msg = "Audio analysis timed out: #{e.message}"
@@ -388,6 +395,56 @@ module ProsodicTextConverter
     rescue StandardError => e
       logger.error("Failed to initialize spectrogram analyzer: #{e.message}")
       raise "Spectrogram analyzer initialization failed: #{e.message}"
+    end
+
+    # Save pitch data to output directory in multiple formats
+    #
+    # @param analysis_result [Hash] analysis results containing pitch data
+    # @param output_dir [String] output directory path
+    # @param audio_file [String] original audio file path for naming
+    # @return [Hash] paths to saved data files
+    def save_pitch_data(analysis_result, output_dir, audio_file)
+      require 'json'
+      require 'csv'
+      require 'fileutils'
+
+      FileUtils.mkdir_p(output_dir)
+      
+      base_name = File.basename(audio_file, '.*')
+      timestamp = Time.now.strftime('%Y%m%d_%H%M%S')
+      
+      # Prepare pitch data for saving
+      pitch_data = analysis_result[:pitch_analysis] || []
+      prosodic_features = analysis_result[:prosodic_features] || {}
+      
+      # Save as JSON
+      json_file = File.join(output_dir, "#{base_name}_pitch_data_#{timestamp}.json")
+      json_data = {
+        audio_file: audio_file,
+        backend: @pitch_backend,
+        timestamp: Time.now.iso8601,
+        prosodic_features: prosodic_features,
+        pitch_data: pitch_data
+      }
+      
+      File.write(json_file, JSON.pretty_generate(json_data))
+      
+      # Save as CSV
+      csv_file = File.join(output_dir, "#{base_name}_pitch_data_#{timestamp}.csv")
+      CSV.open(csv_file, 'w') do |csv|
+        csv << ['timestamp', 'frequency_hz', 'confidence'] # Header
+        pitch_data.each do |point|
+          csv << [point[:timestamp], point[:frequency], point[:confidence] || 1.0]
+        end
+      end
+      
+      {
+        json: json_file,
+        csv: csv_file
+      }
+    rescue StandardError => e
+      logger.warn("Failed to save pitch data: #{e.message}")
+      {}
     end
   end
 end

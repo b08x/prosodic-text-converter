@@ -140,7 +140,8 @@ module ProsodicTextConverter
           pattern: config.predefined_pattern,
           provider: config.get(:provider).to_sym,
           model: config.get(:model),
-          pitch_backend: config.get(:pitch_backend).to_sym
+          pitch_backend: config.get(:pitch_backend).to_sym,
+          output_dir: config.get(:output_dir)
         )
       end
     rescue Timeout::Error

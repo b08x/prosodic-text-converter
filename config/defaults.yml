@@ -16,6 +16,7 @@ default_pattern: "deliberate"
 
 # Output Configuration
 output_format: "ssml"
+output_dir: "./output"
 verbose: false
 
 # ElevenLabs Configuration (optional)

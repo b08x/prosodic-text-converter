@@ -181,9 +181,9 @@ module ProsodicTextConverter
 
       logger.debug('Sonic Annotator found')
 
-      # Set VAMP_PATH to local vamp directory
-      @vamp_path = File.join(File.dirname(__FILE__), '..', '..', '..', 'vamp')
-      @vamp_path = File.expand_path(@vamp_path)
+      # Set VAMP_PATH to system directories or environment variable
+      @vamp_path = ENV['VAMP_PATH'] || '/usr/local/share/vamp:/usr/lib/vamp'
+      ENV['VAMP_PATH'] = @vamp_path
       
       # Check for required Vamp plugins
       check_vamp_plugins
