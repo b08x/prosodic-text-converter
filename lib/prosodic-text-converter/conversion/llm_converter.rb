@@ -49,11 +49,13 @@ module ProsodicTextConverter
     #
     # @param provider [Symbol] LLM provider (:gemini, :openai, :anthropic, etc.)
     # @param model [String] model name
+    # @param config [Config] configuration object for ElevenLabs options
     # @param options [Hash] additional options for LLM client
     # @raise [RuntimeError] if initialization fails
-    def initialize(provider: :gemini, model: 'gemini-2.0-flash', **options)
+    def initialize(provider: :gemini, model: 'gemini-2.0-flash', config: nil, **options)
       @provider = provider
       @model = model
+      @config = config
       @options = options
 
       begin
@@ -169,9 +171,17 @@ module ProsodicTextConverter
         logger.info("Converting text to SSML (#{text.length} chars, #{text_analysis[:sentence_count]} sentences)")
         start_time = Time.now
 
-        # Build prompts with structured analysis
-        system_prompt = build_system_prompt
-        user_prompt = build_analysis_conversion_prompt(text_analysis, pattern)
+        # Build prompts with structured analysis - check for ElevenLabs features
+        if elevenlabs_v3_model?
+          system_prompt = build_elevenlabs_v3_system_prompt
+          user_prompt = build_elevenlabs_v3_conversion_prompt(text_analysis, pattern)
+        elsif elevenlabs_phonemes_enabled?
+          system_prompt = build_elevenlabs_phoneme_system_prompt
+          user_prompt = build_elevenlabs_phoneme_conversion_prompt(text_analysis, pattern)
+        else
+          system_prompt = build_system_prompt
+          user_prompt = build_analysis_conversion_prompt(text_analysis, pattern)
+        end
 
         logger.debug("Sending request to #{@provider}:#{@model}")
 
@@ -683,6 +693,260 @@ module ProsodicTextConverter
       logger.debug("Meaning preservation check: length_ratio=#{length_ratio.round(2)}, content_preservation=#{content_preservation.round(2)}")
       
       content_preservation >= threshold
+    end
+
+    # Check if the current configuration specifies an ElevenLabs v3 model
+    #
+    # @return [Boolean] true if ElevenLabs v3 model is configured
+    def elevenlabs_v3_model?
+      return false unless @config
+
+      model_id = @config.get(:elevenlabs_model_id)
+      return false unless model_id
+
+      # Check if the model ID contains 'v3' (simple heuristic for now)
+      model_id.to_s.downcase.include?('v3')
+    end
+
+    # Check if phoneme features should be enabled
+    #
+    # @return [Boolean] true if phonemes should be used
+    def elevenlabs_phonemes_enabled?
+      return false unless @config
+
+      # Check if the flag is enabled
+      phonemes_enabled = @config.get(:elevenlabs_use_phonemes)
+      return false unless phonemes_enabled
+
+      # Check if model supports phonemes
+      model_id = @config.get(:elevenlabs_model_id) || @config.get(:elevenlabs_model)
+      return false unless model_id
+
+      # Use the same compatibility check as ElevenLabsFormatter
+      model_supports_phonemes?(model_id)
+    end
+
+    # Check if model supports phoneme tags (using same logic as ElevenLabsFormatter)
+    #
+    # @param model_id [String] ElevenLabs model identifier
+    # @return [Boolean] true if model supports phonemes
+    def model_supports_phonemes?(model_id)
+      return false unless @config
+
+      models_config = @config.get('elevenlabs_models_config', {})
+      model_config = models_config[model_id] || models_config[model_id.to_sym]
+      return false unless model_config
+
+      model_config[:supports_phonemes] || model_config['supports_phonemes']
+    end
+
+    # Build system prompt for ElevenLabs v3 models with audio tags support
+    #
+    # @return [String] system prompt for v3 models
+    def build_elevenlabs_v3_system_prompt
+      <<~SYSTEM
+        You are an expert in speech synthesis and prosodic text formatting specifically for ElevenLabs v3 models.
+        Your task is to convert regular text into SSML format that matches specific prosodic patterns while also
+        utilizing ElevenLabs v3 audio tags for enhanced emotional and stylistic expression.
+
+        ElevenLabs v3 Audio Tags:
+        Use bracketed audio tags to add emotional nuance and vocal style where appropriate:
+        - [laughs], [sighs], [whispers], [sarcastic], [curious], [excited], [crying]
+        - [starts laughing], [exhales], [mischievously], [snorts]
+        - These tags should be used naturally within the text to enhance expression
+
+        Always:
+        - Maintain the original meaning and intent
+        - Use proper SSML syntax with <prosody> and <break> tags
+        - Wrap output in <speak> tags
+        - Create natural-sounding speech patterns
+        - Vary pitch subtly for engaging delivery
+        - Use ElevenLabs v3 audio tags strategically for emotional expression
+
+        Example with audio tags:
+        Well, [sighs] I suppose that's one way to look at it.
+        This is [excited] absolutely fantastic news!
+      SYSTEM
+    end
+
+    # Build conversion prompt for ElevenLabs v3 models with audio tags
+    #
+    # @param text_analysis [Hash] structured text analysis from TextAnalyzer
+    # @param pattern [ProsodicPattern] prosodic pattern
+    # @return [String] conversion prompt for v3 models
+    def build_elevenlabs_v3_conversion_prompt(text_analysis, pattern)
+      text = text_analysis[:original_text]
+      sentences = text_analysis[:sentences]
+
+      # Build sentence analysis summary
+      sentence_summary = sentences.map do |sent|
+        pause_hints = sent[:pause_indicators].join(', ') if sent[:pause_indicators].any?
+        syllables = sent[:words].sum { |w| w[:syllable_count] }
+        "Sentence #{sent[:index] + 1}: #{sent[:word_count]} words, #{syllables} syllables" +
+          (pause_hints ? " (#{pause_hints})" : '')
+      end.join("\n")
+
+      <<~PROMPT
+        Convert this text to match the specified prosodic pattern for ElevenLabs v3 text-to-speech synthesis.
+        Use the detailed linguistic analysis to make intelligent prosodic decisions and incorporate ElevenLabs v3 audio tags for enhanced expression.
+
+        PROSODIC PATTERN:
+        - Segment duration: #{pattern.segment_duration}s (#{optimal_words_per_chunk(pattern)} words max per segment)
+        - Pause duration: #{(pattern.pause_duration * 1000).to_i}ms between segments
+        - Pitch variation: ±#{pattern.pitch_variation}% between segments
+        - Speaking rate: #{pattern.rate}
+
+        ORIGINAL TEXT:
+        #{text}
+
+        LINGUISTIC ANALYSIS:
+        - Language: #{text_analysis[:language]}
+        - Total sentences: #{text_analysis[:sentence_count]}
+        - Total syllables: #{sentences.sum { |s| s[:words].sum { |w| w[:syllable_count] } }}
+
+        #{sentence_summary}
+
+        ELEVENLABS V3 AUDIO TAG GUIDANCE:
+        Use bracketed audio tags for emotional expression where appropriate:
+        - [laughs], [sighs], [whispers] for vocal style
+        - [sarcastic], [curious], [excited] for emotional tone
+        - [starts laughing], [exhales], [mischievously] for dynamic expression
+        
+        Examples of effective usage:
+        - "Well, [sighs] I suppose that's one way to look at it."
+        - "This is [excited] absolutely fantastic!"
+        - "Oh really? [sarcastic] That's very interesting."
+
+        PROSODIC CONSIDERATIONS:
+        1. Use punctuation analysis to determine natural pause points
+        2. Consider syllable density for timing adjustments
+        3. Respect discourse markers and conjunctions for appropriate pauses
+        4. Break at prosodic boundaries rather than arbitrary word counts
+        5. Use pitch variation to maintain engagement while preserving meaning
+        6. Adjust speaking rate based on content complexity
+        7. Strategically place ElevenLabs v3 audio tags for emotional enhancement
+
+        FORMATTING REQUIREMENTS:
+        1. Create segments that respect linguistic boundaries
+        2. Use <break time="#{(pattern.pause_duration * 1000).to_i}ms"/> for major pauses
+        3. Use shorter breaks (100-200ms) for comma pauses
+        4. Apply <prosody> tags with subtle pitch variations (±#{pattern.pitch_variation}%)
+        5. Match segment duration to #{pattern.segment_duration}s target
+        6. Include ElevenLabs v3 audio tags for emotional nuance where appropriate
+        7. Return ONLY the SSML markup wrapped in <speak> tags
+
+        Example format:
+        <speak>
+        <prosody rate="#{pattern.rate}" pitch="+2%">First prosodic unit [sighs] with emotion</prosody>
+        <break time="#{(pattern.pause_duration * 1000).to_i}ms"/>
+        <prosody rate="#{pattern.rate}" pitch="-1%">Second [excited] prosodic unit</prosody>
+        </speak>
+      PROMPT
+    end
+
+    # Build system prompt for ElevenLabs models with phoneme support
+    #
+    # @return [String] system prompt for phoneme-enhanced models
+    def build_elevenlabs_phoneme_system_prompt
+      <<~SYSTEM
+        You are an expert in speech synthesis and prosodic text formatting specifically for ElevenLabs models.
+        Your task is to convert regular text into SSML format that matches specific prosodic patterns while also
+        utilizing phoneme tags for precise pronunciation control.
+
+        SSML Phoneme Tags:
+        For any words that might be mispronounced (like jargon, names, or loanwords), you must provide a phonetic 
+        transcription using the SSML <phoneme> tag with the International Phonetic Alphabet (IPA).
+        
+        The format must be: <phoneme alphabet="ipa" ph="...">word</phoneme>
+        
+        Examples:
+        - <phoneme alphabet="ipa" ph="ˈkjuːbərnɛtiːz">Kubernetes</phoneme>
+        - <phoneme alphabet="ipa" ph="ˈliːdərʃɪp">leadership</phoneme>
+        - <phoneme alphabet="ipa" ph="təˈmeɪtoʊ">tomato</phoneme>
+
+        Always:
+        - Maintain the original meaning and intent
+        - Use proper SSML syntax with <prosody> and <break> tags
+        - Wrap output in <speak> tags
+        - Create natural-sounding speech patterns
+        - Vary pitch subtly for engaging delivery
+        - Use phoneme tags for words that might be mispronounced
+      SYSTEM
+    end
+
+    # Build conversion prompt for ElevenLabs models with phoneme support
+    #
+    # @param text_analysis [Hash] structured text analysis from TextAnalyzer
+    # @param pattern [ProsodicPattern] prosodic pattern
+    # @return [String] conversion prompt for phoneme-enhanced models
+    def build_elevenlabs_phoneme_conversion_prompt(text_analysis, pattern)
+      text = text_analysis[:original_text]
+      sentences = text_analysis[:sentences]
+
+      # Build sentence analysis summary
+      sentence_summary = sentences.map do |sent|
+        pause_hints = sent[:pause_indicators].join(', ') if sent[:pause_indicators].any?
+        syllables = sent[:words].sum { |w| w[:syllable_count] }
+        "Sentence #{sent[:index] + 1}: #{sent[:word_count]} words, #{syllables} syllables" +
+          (pause_hints ? " (#{pause_hints})" : '')
+      end.join("\n")
+
+      <<~PROMPT
+        Convert this text to match the specified prosodic pattern for ElevenLabs text-to-speech synthesis.
+        Use the detailed linguistic analysis to make intelligent prosodic decisions and include phoneme tags for pronunciation accuracy.
+
+        PROSODIC PATTERN:
+        - Segment duration: #{pattern.segment_duration}s (#{optimal_words_per_chunk(pattern)} words max per segment)
+        - Pause duration: #{(pattern.pause_duration * 1000).to_i}ms between segments
+        - Pitch variation: ±#{pattern.pitch_variation}% between segments
+        - Speaking rate: #{pattern.rate}
+
+        ORIGINAL TEXT:
+        #{text}
+
+        LINGUISTIC ANALYSIS:
+        - Language: #{text_analysis[:language]}
+        - Total sentences: #{text_analysis[:sentence_count]}
+        - Total syllables: #{sentences.sum { |s| s[:words].sum { |w| w[:syllable_count] } }}
+
+        #{sentence_summary}
+
+        PHONEME TAG GUIDANCE:
+        For any words that might be mispronounced (jargon, names, loanwords), provide phonetic transcription:
+        - Use format: <phoneme alphabet="ipa" ph="...">word</phoneme>
+        - Target words: proper names, technical terms, abbreviations, foreign words
+        - Use International Phonetic Alphabet (IPA) notation
+        
+        Examples of effective phoneme usage:
+        - "The process uses <phoneme alphabet=\"ipa\" ph=\"ˈkjuːbərnɛtiːz\">Kubernetes</phoneme>."
+        - "Dr. <phoneme alphabet=\"ipa\" ph=\"ˈsiːzər\">César</phoneme> will present today."
+        - "The <phoneme alphabet=\"ipa\" ph=\"ˈkæʃeɪ\">cache</phoneme> improves performance."
+
+        PROSODIC CONSIDERATIONS:
+        1. Use punctuation analysis to determine natural pause points
+        2. Consider syllable density for timing adjustments
+        3. Respect discourse markers and conjunctions for appropriate pauses
+        4. Break at prosodic boundaries rather than arbitrary word counts
+        5. Use pitch variation to maintain engagement while preserving meaning
+        6. Adjust speaking rate based on content complexity
+        7. Apply phoneme tags strategically for pronunciation accuracy
+
+        FORMATTING REQUIREMENTS:
+        1. Create segments that respect linguistic boundaries
+        2. Use <break time="#{(pattern.pause_duration * 1000).to_i}ms"/> for major pauses
+        3. Use shorter breaks (100-200ms) for comma pauses
+        4. Apply <prosody> tags with subtle pitch variations (±#{pattern.pitch_variation}%)
+        5. Match segment duration to #{pattern.segment_duration}s target
+        6. Include <phoneme> tags for words requiring pronunciation guidance
+        7. Return ONLY the SSML markup wrapped in <speak> tags
+
+        Example format:
+        <speak>
+        <prosody rate="#{pattern.rate}" pitch="+2%">The <phoneme alphabet="ipa" ph="ˈkɒmpəni">company</phoneme> reported results</prosody>
+        <break time="#{(pattern.pause_duration * 1000).to_i}ms"/>
+        <prosody rate="#{pattern.rate}" pitch="-1%">that exceeded expectations</prosody>
+        </speak>
+      PROMPT
     end
   end
 end

@@ -518,6 +518,164 @@ RSpec.describe ProsodicTextConverter::LLMConverter do
     end
   end
 
+  describe 'ElevenLabs phoneme support' do
+    let(:mock_config) { instance_double('ProsodicTextConverter::Config') }
+    let(:converter_with_config) { described_class.new(logger: mock_logger, config: mock_config) }
+
+    context 'when phonemes are enabled and model supports them' do
+      before do
+        allow(mock_config).to receive(:get).with(:elevenlabs_use_phonemes).and_return(true)
+        allow(mock_config).to receive(:get).with(:elevenlabs_model_id).and_return('eleven_turbo_v2')
+        allow(mock_config).to receive(:get).with(:elevenlabs_model).and_return(nil)
+      end
+
+      it 'detects phoneme feature is enabled' do
+        expect(converter_with_config.send(:elevenlabs_phonemes_enabled?)).to be true
+      end
+
+      it 'uses phoneme-specific prompts for conversion' do
+        client_with_model = instance_double('RubyLLM::ClientWithModel')
+        client_with_temp = instance_double('RubyLLM::ClientWithTemp')
+
+        allow(mock_client).to receive(:with_model).and_return(client_with_model)
+        allow(client_with_model).to receive(:with_temperature).and_return(client_with_temp)
+
+        expect(client_with_temp).to receive(:ask) do |prompt|
+          expect(prompt).to include('phoneme tags for precise pronunciation')
+          expect(prompt).to include('<phoneme alphabet="ipa"')
+          expect(prompt).to include('PHONEME TAG GUIDANCE')
+          expect(prompt).to include('Kubernetes')
+          expected_ssml
+        end
+
+        converter_with_config.convert_text_with_analysis(text_analysis, mock_pattern)
+      end
+    end
+
+    context 'when phonemes are enabled but model does not support them' do
+      before do
+        allow(mock_config).to receive(:get).with(:elevenlabs_use_phonemes).and_return(true)
+        allow(mock_config).to receive(:get).with(:elevenlabs_model_id).and_return('eleven_basic_v1')
+        allow(mock_config).to receive(:get).with(:elevenlabs_model).and_return(nil)
+      end
+
+      it 'detects phoneme feature is disabled due to model incompatibility' do
+        expect(converter_with_config.send(:elevenlabs_phonemes_enabled?)).to be false
+      end
+
+      it 'uses standard prompts for conversion' do
+        client_with_model = instance_double('RubyLLM::ClientWithModel')
+        client_with_temp = instance_double('RubyLLM::ClientWithTemp')
+
+        allow(mock_client).to receive(:with_model).and_return(client_with_model)
+        allow(client_with_model).to receive(:with_temperature).and_return(client_with_temp)
+
+        expect(client_with_temp).to receive(:ask) do |prompt|
+          expect(prompt).not_to include('phoneme tags for precise pronunciation')
+          expect(prompt).not_to include('PHONEME TAG GUIDANCE')
+          expected_ssml
+        end
+
+        converter_with_config.convert_text_with_analysis(text_analysis, mock_pattern)
+      end
+    end
+
+    context 'when phonemes are disabled' do
+      before do
+        allow(mock_config).to receive(:get).with(:elevenlabs_use_phonemes).and_return(false)
+        allow(mock_config).to receive(:get).with(:elevenlabs_model_id).and_return('eleven_turbo_v2')
+        allow(mock_config).to receive(:get).with(:elevenlabs_model).and_return(nil)
+      end
+
+      it 'detects phoneme feature is disabled' do
+        expect(converter_with_config.send(:elevenlabs_phonemes_enabled?)).to be false
+      end
+    end
+  end
+
+  describe 'ElevenLabs v3 model support' do
+    let(:mock_config) { instance_double('ProsodicTextConverter::Config') }
+    let(:converter_with_config) { described_class.new(logger: mock_logger, config: mock_config) }
+
+    context 'when ElevenLabs v3 model is configured' do
+      before do
+        allow(mock_config).to receive(:get).with(:elevenlabs_model_id).and_return('eleven_turbo_v3')
+      end
+
+      it 'detects v3 model correctly' do
+        expect(converter_with_config.send(:elevenlabs_v3_model?)).to be true
+      end
+
+      it 'uses v3-specific prompts for conversion' do
+        client_with_model = instance_double('RubyLLM::ClientWithModel')
+        client_with_temp = instance_double('RubyLLM::ClientWithTemp')
+
+        allow(mock_client).to receive(:with_model).and_return(client_with_model)
+        allow(client_with_model).to receive(:with_temperature).and_return(client_with_temp)
+
+        expect(client_with_temp).to receive(:ask) do |prompt|
+          expect(prompt).to include('ElevenLabs v3 models')
+          expect(prompt).to include('[laughs]')
+          expect(prompt).to include('[sighs]')
+          expect(prompt).to include('ELEVENLABS V3 AUDIO TAG GUIDANCE')
+          expected_ssml
+        end
+
+        converter_with_config.convert_text_with_analysis(text_analysis, mock_pattern)
+      end
+
+      it 'includes audio tag examples in v3 prompts' do
+        client_with_model = instance_double('RubyLLM::ClientWithModel')
+        client_with_temp = instance_double('RubyLLM::ClientWithTemp')
+
+        allow(mock_client).to receive(:with_model).and_return(client_with_model)
+        allow(client_with_model).to receive(:with_temperature).and_return(client_with_temp)
+
+        expect(client_with_temp).to receive(:ask) do |prompt|
+          expect(prompt).to include('[excited] absolutely fantastic!')
+          expect(prompt).to include('[sarcastic] That\'s very interesting.')
+          expected_ssml
+        end
+
+        converter_with_config.convert_text_with_analysis(text_analysis, mock_pattern)
+      end
+    end
+
+    context 'when ElevenLabs v3 model is not configured' do
+      before do
+        allow(mock_config).to receive(:get).with(:elevenlabs_model_id).and_return('eleven_turbo_v2')
+      end
+
+      it 'detects non-v3 model correctly' do
+        expect(converter_with_config.send(:elevenlabs_v3_model?)).to be false
+      end
+
+      it 'uses standard prompts for conversion' do
+        client_with_model = instance_double('RubyLLM::ClientWithModel')
+        client_with_temp = instance_double('RubyLLM::ClientWithTemp')
+
+        allow(mock_client).to receive(:with_model).and_return(client_with_model)
+        allow(client_with_model).to receive(:with_temperature).and_return(client_with_temp)
+
+        expect(client_with_temp).to receive(:ask) do |prompt|
+          expect(prompt).not_to include('ElevenLabs v3 models')
+          expect(prompt).not_to include('[laughs]')
+          expect(prompt).not_to include('ELEVENLABS V3 AUDIO TAG GUIDANCE')
+          expected_ssml
+        end
+
+        converter_with_config.convert_text_with_analysis(text_analysis, mock_pattern)
+      end
+    end
+
+    context 'when no config is provided' do
+      it 'defaults to standard prompts' do
+        converter_without_config = described_class.new(logger: mock_logger)
+        expect(converter_without_config.send(:elevenlabs_v3_model?)).to be false
+      end
+    end
+  end
+
   describe 'error handling and logging' do
     let(:converter) { described_class.new(logger: mock_logger) }
 

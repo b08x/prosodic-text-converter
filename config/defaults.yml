@@ -21,7 +21,20 @@ verbose: false
 
 # ElevenLabs Configuration (optional)
 elevenlabs_model: "eleven_monolingual_v1"
-elevenlabs_voice: null
+elevenlabs_voice: "L0Dsvb3SLTyegXwtm47J"
+elevenlabs_stability: 0.5
+elevenlabs_similarity_boost: 0.75
+
+# ElevenLabs Model Capabilities Configuration
+elevenlabs_models_config:
+  eleven_english_v1:
+    supports_phonemes: true
+  eleven_flash_v2:
+    supports_phonemes: true
+  eleven_turbo_v2:
+    supports_phonemes: true
+  eleven_monolingual_v1:
+    supports_phonemes: false
 
 # Processing Configuration
 analyze_only: false

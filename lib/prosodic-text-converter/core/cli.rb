@@ -408,6 +408,17 @@ module ProsodicTextConverter
       synthesis_options = {}
       elevenlabs_model = config.get(:elevenlabs_model)
       synthesis_options[:model_id] = elevenlabs_model if elevenlabs_model
+      
+      # Add stability and similarity boost options if specified
+      stability = config.get(:elevenlabs_stability)
+      synthesis_options[:stability] = stability if stability
+      
+      similarity_boost = config.get(:elevenlabs_similarity_boost)
+      synthesis_options[:similarity_boost] = similarity_boost if similarity_boost
+      
+      # Add pronunciation dictionary IDs if specified
+      dictionary_ids = config.get(:elevenlabs_dictionary_ids)
+      synthesis_options[:dictionary_ids] = dictionary_ids if dictionary_ids && !dictionary_ids.empty?
 
       audio_data = synthesizer.synthesize_ssml(
         ssml_text,
@@ -444,6 +455,11 @@ module ProsodicTextConverter
           --model=NAME           Model name (gpt-4, claude-3-sonnet, gemini-2.0-flash, etc.)
           --elevenlabs-voice=ID  ElevenLabs voice ID for speech synthesis
           --elevenlabs-model=ID  ElevenLabs model (eleven_monolingual_v1, etc.)
+          --elevenlabs-model-id=ID  ElevenLabs model ID for v3 audio tags support
+          --elevenlabs-stability=FLOAT  ElevenLabs voice stability (0.0-1.0, default: 0.5)
+          --elevenlabs-similarity-boost=FLOAT  ElevenLabs similarity boost (0.0-1.0, default: 0.75)
+          --elevenlabs-use-phonemes  Enable phonetic transcription for phoneme-compatible models
+          --elevenlabs-dictionary-ids=ID1,ID2  Comma-separated ElevenLabs pronunciation dictionary IDs
           --output=FILE          Output audio file (when using ElevenLabs)
           --rephrase             Enable SFL-based text rephrasing for prosodic optimization
           --no-rephrase          Disable text rephrasing (default)

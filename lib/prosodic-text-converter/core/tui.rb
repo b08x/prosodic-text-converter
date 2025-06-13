@@ -500,7 +500,7 @@ module ProsodicTextConverter
 
     # Get ElevenLabs voices
     def get_elevenlabs_voices
-      return ['Adam', 'Bella', 'Callum'] # Default voices if API call fails
+      return ['Aria', 'Neha', 'Bill'] # Default voices if API call fails
       
       begin
         require_relative '../audio/speech_synthesizer'
@@ -509,7 +509,7 @@ module ProsodicTextConverter
         voices.map { |v| { name: "#{v['name']} (#{v['voice_id']})", value: v['voice_id'] } }
       rescue StandardError => e
         logger.warn("Failed to fetch ElevenLabs voices: #{e.message}")
-        ['Adam', 'Bella', 'Callum']
+        ['Aria', 'Neha', 'Bill']
       end
     end
 

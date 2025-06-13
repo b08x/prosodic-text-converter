@@ -1,10 +1,11 @@
 # frozen_string_literal: true
 
-# Load environment variables from .env file during development
+# Attempts to load the .env file, overwriting existing environment variables.
+# If an error occurs, it displays an error message.
 begin
-  require 'dotenv/load'
-rescue LoadError
-  # dotenv not available, ignore
+  Dotenv.load(".env", overwrite: true)
+rescue StandardError => e
+  puts "Error loading .env file: #{e.message}"
 end
 
 require_relative 'prosodic-text-converter/version'

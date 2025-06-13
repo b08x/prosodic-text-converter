@@ -216,7 +216,12 @@ module ProsodicTextConverter
       @config.set_from_env(:spectrogram_dir)
       @config.set_from_env(:verbose)
       @config.set_from_env(:elevenlabs_model)
+      @config.set_from_env(:elevenlabs_model_id)
       @config.set_from_env(:elevenlabs_voice)
+      @config.set_from_env(:elevenlabs_stability)
+      @config.set_from_env(:elevenlabs_similarity_boost)
+      @config.set_from_env(:elevenlabs_use_phonemes)
+      @config.set_from_env(:elevenlabs_dictionary_ids)
       @config.set_from_env(:enable_rephrasing)
       @config.set_from_env(:rephrasing_aggressiveness)
       @config.set_from_env(:preserve_meaning_threshold)
@@ -259,6 +264,16 @@ module ProsodicTextConverter
           config_hash[:elevenlabs_voice] = ::Regexp.last_match(1)
         when /^--elevenlabs-model=(.+)$/
           config_hash[:elevenlabs_model] = ::Regexp.last_match(1)
+        when /^--elevenlabs-model-id=(.+)$/
+          config_hash[:elevenlabs_model_id] = ::Regexp.last_match(1)
+        when /^--elevenlabs-stability=(.+)$/
+          config_hash[:elevenlabs_stability] = ::Regexp.last_match(1).to_f
+        when /^--elevenlabs-similarity-boost=(.+)$/
+          config_hash[:elevenlabs_similarity_boost] = ::Regexp.last_match(1).to_f
+        when '--elevenlabs-use-phonemes'
+          config_hash[:elevenlabs_use_phonemes] = true
+        when /^--elevenlabs-dictionary-ids=(.+)$/
+          config_hash[:elevenlabs_dictionary_ids] = ::Regexp.last_match(1).split(',').map(&:strip)
         when /^--output=(.+)$/
           config_hash[:output_file] = ::Regexp.last_match(1)
         when /^--output-dir=(.+)$/

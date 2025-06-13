@@ -396,7 +396,7 @@ module ProsodicTextConverter
     # @param options [Hash] additional options
     # @return [LLMConverter] configured converter
     def initialize_llm_converter(provider, model, options)
-      LLMConverter.new(provider: provider, model: model, **options)
+      LLMConverter.new(provider: provider, model: model, config: @config, **options)
     rescue StandardError => e
       logger.error("Failed to initialize LLM converter: #{e.message}")
       raise "LLM converter initialization failed: #{e.message}"

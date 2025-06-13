@@ -153,4 +153,55 @@ RSpec.describe ProsodicTextConverter::ElevenLabsFormatter do
       expect(formatter.send(:normalize_rate_value, 'fast')).to eq('fast')
     end
   end
+
+  describe '#synthesize_speech' do
+    let(:formatter_with_api_key) { described_class.new(api_key: 'test_api_key') }
+    let(:voice_id) { 'test_voice_id' }
+    let(:ssml_text) { '<speak>Hello world</speak>' }
+
+    before do
+      # Mock the HTTP request to avoid making actual API calls
+      allow(formatter_with_api_key).to receive(:make_api_request).and_return('audio_data')
+    end
+
+    context 'with pronunciation dictionary IDs' do
+      it 'correctly formats dictionary IDs in the API payload as pronunciation_dictionary_locators' do
+        dictionary_ids = ['dict_1', 'dict_2', 'dict_3']
+        
+        # Expect the API request to be made with correct payload structure
+        expect(formatter_with_api_key).to receive(:make_api_request) do |url, headers, payload|
+          expect(payload[:pronunciation_dictionary_locators]).not_to be_nil
+          expect(payload[:pronunciation_dictionary_locators]).to be_an(Array)
+          expect(payload[:pronunciation_dictionary_locators].length).to eq(3)
+          
+          # Verify each dictionary ID is properly formatted
+          expect(payload[:pronunciation_dictionary_locators][0]).to eq({ pronunciation_dictionary_id: 'dict_1' })
+          expect(payload[:pronunciation_dictionary_locators][1]).to eq({ pronunciation_dictionary_id: 'dict_2' })
+          expect(payload[:pronunciation_dictionary_locators][2]).to eq({ pronunciation_dictionary_id: 'dict_3' })
+          
+          'mocked_audio_data'
+        end
+
+        formatter_with_api_key.synthesize_speech(ssml_text, voice_id, dictionary_ids: dictionary_ids)
+      end
+
+      it 'does not include pronunciation_dictionary_locators when dictionary_ids is empty' do
+        expect(formatter_with_api_key).to receive(:make_api_request) do |url, headers, payload|
+          expect(payload[:pronunciation_dictionary_locators]).to be_nil
+          'mocked_audio_data'
+        end
+
+        formatter_with_api_key.synthesize_speech(ssml_text, voice_id, dictionary_ids: [])
+      end
+
+      it 'does not include pronunciation_dictionary_locators when dictionary_ids is not provided' do
+        expect(formatter_with_api_key).to receive(:make_api_request) do |url, headers, payload|
+          expect(payload[:pronunciation_dictionary_locators]).to be_nil
+          'mocked_audio_data'
+        end
+
+        formatter_with_api_key.synthesize_speech(ssml_text, voice_id)
+      end
+    end
+  end
 end

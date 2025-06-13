@@ -19,19 +19,14 @@ module ProsodicTextConverter
     # Maximum break duration allowed by ElevenLabs API (in seconds)
     MAX_BREAK_DURATION = 3.0
 
-    # Models that support phoneme tags
-    PHONEME_SUPPORTED_MODELS = %w[
-      eleven_english_v1
-      eleven_flash_v2
-      eleven_turbo_v2
-    ].freeze
-
     # Initialize ElevenLabs formatter
     #
     # @param api_key [String] ElevenLabs API key
-    def initialize(api_key: nil)
+    # @param config [Config] configuration object for model capabilities
+    def initialize(api_key: nil, config: nil)
       super()
       @api_key = api_key || ENV['ELEVENLABS_API_KEY']
+      @config = config
     end
 
     # Convert standard SSML to ElevenLabs-compatible format
@@ -63,6 +58,7 @@ module ProsodicTextConverter
     # @option options [String] :model_id ElevenLabs model to use
     # @option options [Float] :stability Voice stability (0.0-1.0)
     # @option options [Float] :similarity_boost Voice similarity boost (0.0-1.0)
+    # @option options [Array<String>] :dictionary_ids Pronunciation dictionary IDs
     # @option options [String] :output_format Audio format (mp3, wav, etc.)
     # @return [String] binary audio data
     def synthesize_speech(ssml_text, voice_id, **options)
@@ -90,6 +86,14 @@ module ProsodicTextConverter
           similarity_boost: options[:similarity_boost] || 0.75
         }
       }
+
+      # Add pronunciation dictionary locators if provided
+      dictionary_ids = options[:dictionary_ids]
+      if dictionary_ids && !dictionary_ids.empty?
+        payload[:pronunciation_dictionary_locators] = dictionary_ids.map do |dict_id|
+          { pronunciation_dictionary_id: dict_id }
+        end
+      end
 
       # Make API request
       make_api_request(url, headers, payload)
@@ -212,7 +216,13 @@ module ProsodicTextConverter
     # @param model_id [String] ElevenLabs model identifier
     # @return [Boolean] true if model supports phonemes
     def model_supports_phonemes?(model_id)
-      PHONEME_SUPPORTED_MODELS.include?(model_id)
+      return false unless @config
+
+      models_config = @config.get('elevenlabs_models_config', {})
+      model_config = models_config[model_id] || models_config[model_id.to_sym]
+      return false unless model_config
+
+      model_config[:supports_phonemes] || model_config['supports_phonemes']
     end
 
     # Make HTTP request to ElevenLabs API

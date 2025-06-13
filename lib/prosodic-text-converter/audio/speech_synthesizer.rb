@@ -23,9 +23,11 @@ module ProsodicTextConverter
     #
     # @param provider [Symbol] speech synthesis provider (:elevenlabs)
     # @param api_key [String] provider API key (optional, can use environment variable)
-    def initialize(provider: :elevenlabs, api_key: nil)
+    # @param config [Config] configuration object for model capabilities
+    def initialize(provider: :elevenlabs, api_key: nil, config: nil)
       @provider = provider
-      @formatter = create_formatter(provider, api_key)
+      @config = config
+      @formatter = create_formatter(provider, api_key, config)
     end
 
     # Synthesize speech from SSML text
@@ -145,11 +147,12 @@ module ProsodicTextConverter
     #
     # @param provider [Symbol] provider identifier
     # @param api_key [String] API key
+    # @param config [Config] configuration object
     # @return [Object] formatter instance
-    def create_formatter(provider, api_key)
+    def create_formatter(provider, api_key, config)
       case provider
       when :elevenlabs
-        ElevenLabsFormatter.new(api_key: api_key)
+        ElevenLabsFormatter.new(api_key: api_key, config: config)
       else
         raise ArgumentError, "Unsupported provider: #{provider}. Available: #{PROVIDERS.keys.join(', ')}"
       end
