@@ -8,6 +8,10 @@ A Ruby-based prosodic text converter that analyzes audio files to extract prosod
 - **Advanced Text Analysis**: Uses lingua and pragmatic_tokenizer for sophisticated linguistic preprocessing
 - **AI-Powered Prosodic Decisions**: Integrates with multiple LLM providers (OpenAI, Anthropic, Google Gemini)
 - **Intelligent SSML Generation**: Produces natural-sounding speech markup with proper timing and pitch variation
+- **🆕 Speech Pattern Extraction**: Analyze spectrograms to extract comprehensive speech patterns including rhythm, stress, and intonation
+- **🆕 Pattern-Based Text Rewriting**: Intelligently rewrite input text to better match extracted speech patterns using SFL principles
+- **🆕 Multi-Strategy Optimization**: Choose from rhythm, stress, intonation, hybrid, or comprehensive rewriting approaches
+- **🆕 Iterative Refinement**: Apply multiple rounds of intelligent text optimization with meaning preservation
 - **Docker Support**: Fully containerized with multi-stage builds and security best practices
 - **Comprehensive Logging**: Detailed analysis and conversion tracking
 
@@ -48,6 +52,12 @@ echo "Hello world! This is a test." | ./bin/prosodic-text-converter --pattern=de
 # Convert text using audio-extracted prosodic pattern
 ./bin/prosodic-text-converter --audio=voice_sample.wav --provider=gemini text.txt
 
+# 🆕 Convert with speech pattern analysis and text rewriting
+./bin/prosodic-text-converter --audio=voice.wav --enable-speech-patterns --enable-pattern-rewriting text.txt
+
+# 🆕 Advanced pattern-based rewriting with custom strategy
+./bin/prosodic-text-converter --audio=voice.wav --enable-pattern-rewriting --rewrite-strategy=rhythm --pattern-rewrite-aggressiveness=aggressive text.txt
+
 # Analysis-only mode to examine audio prosodic features
 ./bin/prosodic-text-converter --audio=speaker.wav --analyze-only --verbose
 ```
@@ -62,13 +72,17 @@ echo "Hello world! This is a test." | ./bin/prosodic-text-converter --pattern=de
 - **LLM Converter** (`lib/prosodic-text-converter/conversion/llm_converter.rb`): AI-powered prosodic decision making
 - **Pitch Analysis** (`lib/prosodic-text-converter/audio/pitch_analyzer.rb`): Factory pattern supporting multiple backends
 - **SSML Formatter** (`lib/prosodic-text-converter/conversion/ssml_formatter.rb`): Output validation and formatting
+- **🆕 Speech Pattern Extractor** (`lib/prosodic-text-converter/analysis/speech_pattern_extractor.rb`): Advanced spectrogram analysis for rhythm, stress, and intonation patterns
+- **🆕 Speech Pattern Rewriter** (`lib/prosodic-text-converter/text/speech_pattern_rewriter.rb`): Intelligent text rewriting using SFL principles and extracted speech patterns
 
 ### Processing Pipeline
 
 1. **Audio Analysis** (optional): Extract prosodic patterns from reference audio
-2. **Text Preprocessing**: Sentence segmentation, tokenization, and linguistic analysis
-3. **LLM Processing**: Generate prosodic markup based on linguistic context and audio patterns
-4. **SSML Generation**: Validate and format final Speech Synthesis Markup Language output
+2. **🆕 Speech Pattern Extraction** (optional): Analyze spectrograms for comprehensive speech patterns including emotional markers
+3. **Text Preprocessing**: Sentence segmentation, tokenization, and linguistic analysis
+4. **🆕 Pattern-Based Text Rewriting** (optional): Intelligently rewrite text to match extracted speech patterns
+5. **LLM Processing**: Generate prosodic markup based on linguistic context and audio patterns
+6. **SSML Generation**: Validate and format final Speech Synthesis Markup Language output
 
 ## Usage Examples
 
@@ -103,6 +117,68 @@ for file in *.wav; do
   ./bin/prosodic-text-converter --audio="$file" --analyze-only --verbose > "${file%.wav}_analysis.txt"
 done
 ```
+
+### 🆕 Advanced Speech Pattern Analysis
+
+Extract comprehensive speech patterns from spectrograms for intelligent text rewriting:
+
+```bash
+# Enable speech pattern extraction and text rewriting
+./bin/prosodic-text-converter --audio=voice.wav \
+  --enable-speech-patterns \
+  --enable-pattern-rewriting \
+  --rewrite-strategy=hybrid \
+  input.txt
+
+# Focus on specific speech aspects
+./bin/prosodic-text-converter --audio=voice.wav \
+  --enable-pattern-rewriting \
+  --rewrite-strategy=rhythm \
+  --rhythm-sensitivity=0.8 \
+  input.txt
+
+# Aggressive rewriting with iterative refinement
+./bin/prosodic-text-converter --audio=voice.wav \
+  --enable-pattern-rewriting \
+  --rewrite-strategy=comprehensive \
+  --pattern-rewrite-aggressiveness=aggressive \
+  --max-rewrite-iterations=5 \
+  --pattern-meaning-threshold=0.9 \
+  input.txt
+
+# Analyze speech patterns without text rewriting
+./bin/prosodic-text-converter --audio=voice.wav \
+  --enable-speech-patterns \
+  --disable-pattern-rewriting \
+  --enable-emotional-detection \
+  --analyze-only \
+  input.txt
+
+# Custom pattern analysis settings
+./bin/prosodic-text-converter --audio=voice.wav \
+  --enable-speech-patterns \
+  --enable-pattern-rewriting \
+  --stress-threshold=0.7 \
+  --intonation-smoothing=0.4 \
+  --enable-iterative-refinement \
+  input.txt
+```
+
+#### Available Rewrite Strategies
+
+- **`rhythm`**: Focus on optimizing temporal patterns and timing
+- **`stress`**: Emphasize stress patterns and syllable prominence
+- **`intonation`**: Optimize for pitch contours and boundary tones
+- **`hybrid`**: Balance rhythm and stress considerations
+- **`comprehensive`**: Consider all speech pattern dimensions
+
+#### Pattern Analysis Features
+
+- **Rhythm Analysis**: Onset intervals, tempo variations, rhythmic groupings
+- **Stress Detection**: Primary/secondary stress patterns, stress density
+- **Intonation Mapping**: Pitch contours, boundary tones, phrase-level prosody
+- **Emotional Detection**: Arousal/valence analysis from spectral features
+- **Breathing Patterns**: Breath pause detection and respiratory rhythm
 
 ### LLM Provider Configuration
 

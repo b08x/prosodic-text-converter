@@ -55,9 +55,23 @@ RSpec.describe ProsodicTextConverter::ElevenLabsFormatter do
     end
 
     context 'with phoneme tags' do
+      let(:mock_config) { instance_double('ProsodicTextConverter::Config') }
+      let(:formatter_with_config) { described_class.new(config: mock_config) }
+      
+      let(:models_config) do
+        {
+          'eleven_english_v1' => { 'supports_phonemes' => true },
+          'unsupported_model' => { 'supports_phonemes' => false }
+        }
+      end
+
+      before do
+        allow(mock_config).to receive(:get).with('elevenlabs_models_config', {}).and_return(models_config)
+      end
+
       it 'removes phoneme tags for unsupported models' do
         ssml = '<speak><phoneme alphabet="ipa" ph="həˈloʊ">hello</phoneme></speak>'
-        result = formatter.convert_to_elevenlabs_format(ssml, model_id: 'unsupported_model')
+        result = formatter_with_config.convert_to_elevenlabs_format(ssml, model_id: 'unsupported_model')
 
         expect(result).to include('hello')
         expect(result).not_to include('<phoneme')
@@ -65,7 +79,7 @@ RSpec.describe ProsodicTextConverter::ElevenLabsFormatter do
 
       it 'preserves phoneme tags for supported models' do
         ssml = '<speak><phoneme alphabet="ipa" ph="həˈloʊ">hello</phoneme></speak>'
-        result = formatter.convert_to_elevenlabs_format(ssml, model_id: 'eleven_english_v1')
+        result = formatter_with_config.convert_to_elevenlabs_format(ssml, model_id: 'eleven_english_v1')
 
         expect(result).to include('<phoneme')
         expect(result).to include('alphabet="ipa"')
@@ -94,15 +108,35 @@ RSpec.describe ProsodicTextConverter::ElevenLabsFormatter do
   end
 
   describe '#model_supports_phonemes?' do
+    let(:mock_config) { instance_double('ProsodicTextConverter::Config') }
+    let(:formatter_with_config) { described_class.new(config: mock_config) }
+    
+    let(:models_config) do
+      {
+        'eleven_english_v1' => { 'supports_phonemes' => true },
+        'eleven_flash_v2' => { 'supports_phonemes' => true },
+        'eleven_turbo_v2' => { 'supports_phonemes' => true },
+        'eleven_monolingual_v1' => { 'supports_phonemes' => false }
+      }
+    end
+
+    before do
+      allow(mock_config).to receive(:get).with('elevenlabs_models_config', {}).and_return(models_config)
+    end
+
     it 'returns true for supported models' do
-      expect(formatter.send(:model_supports_phonemes?, 'eleven_english_v1')).to be true
-      expect(formatter.send(:model_supports_phonemes?, 'eleven_flash_v2')).to be true
-      expect(formatter.send(:model_supports_phonemes?, 'eleven_turbo_v2')).to be true
+      expect(formatter_with_config.send(:model_supports_phonemes?, 'eleven_english_v1')).to be true
+      expect(formatter_with_config.send(:model_supports_phonemes?, 'eleven_flash_v2')).to be true
+      expect(formatter_with_config.send(:model_supports_phonemes?, 'eleven_turbo_v2')).to be true
     end
 
     it 'returns false for unsupported models' do
-      expect(formatter.send(:model_supports_phonemes?, 'eleven_monolingual_v1')).to be false
-      expect(formatter.send(:model_supports_phonemes?, 'unknown_model')).to be false
+      expect(formatter_with_config.send(:model_supports_phonemes?, 'eleven_monolingual_v1')).to be false
+      expect(formatter_with_config.send(:model_supports_phonemes?, 'unknown_model')).to be false
+    end
+
+    it 'returns false when no config is provided' do
+      expect(formatter.send(:model_supports_phonemes?, 'eleven_english_v1')).to be false
     end
   end
 

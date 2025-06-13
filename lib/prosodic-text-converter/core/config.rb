@@ -174,6 +174,145 @@ module ProsodicTextConverter
       get(:rephrasing_timeout, 45)
     end
 
+    # Check if speech pattern analysis is enabled
+    #
+    # @return [Boolean] true if speech pattern analysis is enabled
+    def speech_pattern_analysis_enabled?
+      get(:enable_speech_pattern_analysis, false)
+    end
+
+    # Check if speech pattern rewriting is enabled
+    #
+    # @return [Boolean] true if pattern-based text rewriting is enabled
+    def speech_pattern_rewriting_enabled?
+      get(:speech_pattern_rewriting, false)
+    end
+
+    # Get pattern analysis timeout
+    #
+    # @return [Integer] timeout in seconds
+    def pattern_analysis_timeout
+      get(:pattern_analysis_timeout, 120)
+    end
+
+    # Get speech pattern rewrite strategy
+    #
+    # @return [String] rewrite strategy (rhythm, stress, intonation, hybrid, comprehensive)
+    def rewrite_strategy
+      get(:rewrite_strategy, 'hybrid')
+    end
+
+    # Get pattern rewrite aggressiveness level
+    #
+    # @return [String] aggressiveness level (conservative, medium, aggressive)
+    def pattern_rewrite_aggressiveness
+      get(:pattern_rewrite_aggressiveness, 'medium')
+    end
+
+    # Get pattern meaning preservation threshold
+    #
+    # @return [Float] threshold value (0.0-1.0)
+    def pattern_meaning_threshold
+      get(:pattern_meaning_threshold, 0.85)
+    end
+
+    # Check if emotional detection is enabled
+    #
+    # @return [Boolean] true if emotional pattern analysis is enabled
+    def emotional_detection_enabled?
+      get(:enable_emotional_detection, true)
+    end
+
+    # Check if detailed pattern analysis is enabled
+    #
+    # @return [Boolean] true if detailed analysis features are enabled
+    def detailed_pattern_analysis_enabled?
+      get(:detailed_pattern_analysis, true)
+    end
+
+    # Get rhythm sensitivity level
+    #
+    # @return [Float] sensitivity level (0.1-1.0)
+    def rhythm_sensitivity
+      get(:rhythm_sensitivity, 0.7)
+    end
+
+    # Get stress detection threshold
+    #
+    # @return [Float] threshold value (0.0-1.0)
+    def stress_detection_threshold
+      get(:stress_detection_threshold, 0.6)
+    end
+
+    # Get intonation smoothing factor
+    #
+    # @return [Float] smoothing factor (0.0-1.0)
+    def intonation_smoothing
+      get(:intonation_smoothing, 0.3)
+    end
+
+    # Check if iterative pattern refinement is enabled
+    #
+    # @return [Boolean] true if iterative refinement is enabled
+    def iterative_pattern_refinement_enabled?
+      get(:iterative_pattern_refinement, true)
+    end
+
+    # Get maximum rewrite iterations
+    #
+    # @return [Integer] maximum number of iterations
+    def max_rewrite_iterations
+      get(:max_rewrite_iterations, 3)
+    end
+
+    # Get speech pattern extractor options
+    #
+    # @return [Hash] options for SpeechPatternExtractor
+    def speech_pattern_extractor_options
+      {
+        detailed_analysis: detailed_pattern_analysis_enabled?,
+        emotional_detection: emotional_detection_enabled?,
+        rhythm_sensitivity: rhythm_sensitivity,
+        stress_detection_threshold: stress_detection_threshold,
+        intonation_smoothing: intonation_smoothing
+      }
+    end
+
+    # Get speech pattern rewriter options
+    #
+    # @return [Hash] options for SpeechPatternRewriter
+    def speech_pattern_rewriter_options
+      {
+        rewrite_strategy: rewrite_strategy,
+        preserve_meaning: true,
+        meaning_threshold: pattern_meaning_threshold,
+        detailed_logging: true,
+        max_iterations: max_rewrite_iterations,
+        iterative_refinement: iterative_pattern_refinement_enabled?,
+        timeout: pattern_analysis_timeout
+      }
+    end
+
+    # Get ElevenLabs voice ID (supports both elevenlabs_voice and elevenlabs_voice_id)
+    # Prioritizes elevenlabs_voice_id over elevenlabs_voice for backward compatibility
+    #
+    # @return [String, nil] voice ID or nil if not set
+    def elevenlabs_voice_id
+      # Check if elevenlabs_voice_id was explicitly set (not just from defaults)
+      voice_id = @config.fetch('elevenlabs_voice_id', default: nil)
+      voice = @config.fetch('elevenlabs_voice', default: nil)
+      
+      # If voice_id was set via CLI/env and differs from default, use it
+      # Otherwise fall back to elevenlabs_voice if set
+      if voice_id && voice_id != 'L0Dsvb3SLTyegXwtm47J'  # default value
+        voice_id
+      elsif voice && voice != 'L0Dsvb3SLTyegXwtm47J'  # default value
+        voice
+      else
+        voice_id  # return default if nothing else was set
+      end
+    end
+
     private
 
     # Get default configuration directory
@@ -218,6 +357,7 @@ module ProsodicTextConverter
       @config.set_from_env(:elevenlabs_model)
       @config.set_from_env(:elevenlabs_model_id)
       @config.set_from_env(:elevenlabs_voice)
+      @config.set_from_env(:elevenlabs_voice_id)
       @config.set_from_env(:elevenlabs_stability)
       @config.set_from_env(:elevenlabs_similarity_boost)
       @config.set_from_env(:elevenlabs_use_phonemes)
@@ -226,8 +366,21 @@ module ProsodicTextConverter
       @config.set_from_env(:rephrasing_aggressiveness)
       @config.set_from_env(:preserve_meaning_threshold)
       @config.set_from_env(:rephrasing_timeout)
+      @config.set_from_env(:enable_speech_pattern_analysis)
+      @config.set_from_env(:speech_pattern_rewriting)
+      @config.set_from_env(:pattern_analysis_timeout)
+      @config.set_from_env(:rewrite_strategy)
+      @config.set_from_env(:pattern_rewrite_aggressiveness)
+      @config.set_from_env(:pattern_meaning_threshold)
+      @config.set_from_env(:enable_emotional_detection)
+      @config.set_from_env(:detailed_pattern_analysis)
+      @config.set_from_env(:rhythm_sensitivity)
+      @config.set_from_env(:stress_detection_threshold)
+      @config.set_from_env(:intonation_smoothing)
+      @config.set_from_env(:iterative_pattern_refinement)
+      @config.set_from_env(:max_rewrite_iterations)
 
-      # Also load API keys for LLM providers  
+      # Also load API keys for LLM providers
       @config.set_from_env(:openai_api_key)
       @config.set_from_env(:anthropic_api_key)
       @config.set_from_env(:gemini_api_key)
@@ -262,6 +415,8 @@ module ProsodicTextConverter
           config_hash[:spectrogram_dir] = ::Regexp.last_match(1)
         when /^--elevenlabs-voice=(.+)$/
           config_hash[:elevenlabs_voice] = ::Regexp.last_match(1)
+        when /^--elevenlabs-voice-id=(.+)$/
+          config_hash[:elevenlabs_voice_id] = ::Regexp.last_match(1)
         when /^--elevenlabs-model=(.+)$/
           config_hash[:elevenlabs_model] = ::Regexp.last_match(1)
         when /^--elevenlabs-model-id=(.+)$/
@@ -288,6 +443,42 @@ module ProsodicTextConverter
           config_hash[:preserve_meaning_threshold] = ::Regexp.last_match(1).to_f
         when /^--rephrasing-timeout=(.+)$/
           config_hash[:rephrasing_timeout] = ::Regexp.last_match(1).to_i
+        when '--enable-speech-patterns'
+          config_hash[:enable_speech_pattern_analysis] = true
+        when '--disable-speech-patterns'
+          config_hash[:enable_speech_pattern_analysis] = false
+        when '--enable-pattern-rewriting'
+          config_hash[:speech_pattern_rewriting] = true
+        when '--disable-pattern-rewriting'
+          config_hash[:speech_pattern_rewriting] = false
+        when /^--pattern-analysis-timeout=(.+)$/
+          config_hash[:pattern_analysis_timeout] = ::Regexp.last_match(1).to_i
+        when /^--rewrite-strategy=(.+)$/
+          config_hash[:rewrite_strategy] = ::Regexp.last_match(1)
+        when /^--pattern-rewrite-aggressiveness=(.+)$/
+          config_hash[:pattern_rewrite_aggressiveness] = ::Regexp.last_match(1)
+        when /^--pattern-meaning-threshold=(.+)$/
+          config_hash[:pattern_meaning_threshold] = ::Regexp.last_match(1).to_f
+        when '--enable-emotional-detection'
+          config_hash[:enable_emotional_detection] = true
+        when '--disable-emotional-detection'
+          config_hash[:enable_emotional_detection] = false
+        when '--enable-detailed-analysis'
+          config_hash[:detailed_pattern_analysis] = true
+        when '--disable-detailed-analysis'
+          config_hash[:detailed_pattern_analysis] = false
+        when /^--rhythm-sensitivity=(.+)$/
+          config_hash[:rhythm_sensitivity] = ::Regexp.last_match(1).to_f
+        when /^--stress-threshold=(.+)$/
+          config_hash[:stress_detection_threshold] = ::Regexp.last_match(1).to_f
+        when /^--intonation-smoothing=(.+)$/
+          config_hash[:intonation_smoothing] = ::Regexp.last_match(1).to_f
+        when '--enable-iterative-refinement'
+          config_hash[:iterative_pattern_refinement] = true
+        when '--disable-iterative-refinement'
+          config_hash[:iterative_pattern_refinement] = false
+        when /^--max-rewrite-iterations=(.+)$/
+          config_hash[:max_rewrite_iterations] = ::Regexp.last_match(1).to_i
         when '--verbose'
           config_hash[:verbose] = true
         when '--analyze-only'

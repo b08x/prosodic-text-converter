@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 require 'timeout'
+require 'fileutils'
+require 'pathname'
 require_relative 'logging'
 require_relative 'converter'
 require_relative 'config'
@@ -60,7 +62,7 @@ module ProsodicTextConverter
       result = execute_conversion(converter, config)
 
       # Handle ElevenLabs synthesis if voice specified
-      synthesize_with_elevenlabs(result[:ssml_output], config) if config.get(:elevenlabs_voice) && result[:ssml_output]
+      synthesize_with_elevenlabs(result[:ssml_output], config) if config.elevenlabs_voice_id && result[:ssml_output]
 
       # Output results
       output_results(result, config.verbose?)
@@ -400,7 +402,7 @@ module ProsodicTextConverter
     # @param config [Config] configuration object
     # @return [void]
     def self.synthesize_with_elevenlabs(ssml_text, config)
-      voice = config.get(:elevenlabs_voice)
+      voice = config.elevenlabs_voice_id
       logger.info("Synthesizing speech with ElevenLabs voice: #{voice}")
 
       synthesizer = SpeechSynthesizer.new(provider: :elevenlabs)
@@ -408,14 +410,14 @@ module ProsodicTextConverter
       synthesis_options = {}
       elevenlabs_model = config.get(:elevenlabs_model)
       synthesis_options[:model_id] = elevenlabs_model if elevenlabs_model
-      
+
       # Add stability and similarity boost options if specified
       stability = config.get(:elevenlabs_stability)
       synthesis_options[:stability] = stability if stability
-      
+
       similarity_boost = config.get(:elevenlabs_similarity_boost)
       synthesis_options[:similarity_boost] = similarity_boost if similarity_boost
-      
+
       # Add pronunciation dictionary IDs if specified
       dictionary_ids = config.get(:elevenlabs_dictionary_ids)
       synthesis_options[:dictionary_ids] = dictionary_ids if dictionary_ids && !dictionary_ids.empty?
@@ -426,7 +428,26 @@ module ProsodicTextConverter
         **synthesis_options
       )
 
-      output_file = config.get(:output_file) || 'output.mp3'
+      # Ensure output directory exists
+      output_dir = config.get(:output_dir, './output')
+      FileUtils.mkdir_p(output_dir) unless Dir.exist?(output_dir)
+
+      # Generate output file path in output directory
+      output_file = config.get(:output_file)
+      if output_file
+        # If specific output file provided, ensure it's in the output directory unless it's an absolute path
+        output_file = if Pathname.new(output_file).absolute?
+                        output_file
+                      else
+                        File.join(output_dir,
+                                  File.basename(output_file))
+                      end
+      else
+        # Generate default filename in output directory
+        timestamp = Time.now.strftime('%Y%m%d_%H%M%S')
+        output_file = File.join(output_dir, "speech_#{timestamp}.mp3")
+      end
+
       synthesizer.save_audio(audio_data, output_file)
 
       logger.info("Speech synthesis completed: #{output_file}")
@@ -454,6 +475,7 @@ module ProsodicTextConverter
           --provider=NAME        LLM provider (openai, anthropic, gemini, openrouter, ollama, etc.)
           --model=NAME           Model name (gpt-4, claude-3-sonnet, gemini-2.0-flash, etc.)
           --elevenlabs-voice=ID  ElevenLabs voice ID for speech synthesis
+          --elevenlabs-voice-id=ID  ElevenLabs voice ID (alternative parameter)
           --elevenlabs-model=ID  ElevenLabs model (eleven_monolingual_v1, etc.)
           --elevenlabs-model-id=ID  ElevenLabs model ID for v3 audio tags support
           --elevenlabs-stability=FLOAT  ElevenLabs voice stability (0.0-1.0, default: 0.5)
@@ -461,6 +483,7 @@ module ProsodicTextConverter
           --elevenlabs-use-phonemes  Enable phonetic transcription for phoneme-compatible models
           --elevenlabs-dictionary-ids=ID1,ID2  Comma-separated ElevenLabs pronunciation dictionary IDs
           --output=FILE          Output audio file (when using ElevenLabs)
+          --output-dir=DIR       Directory for output files (default: ./output)
           --rephrase             Enable SFL-based text rephrasing for prosodic optimization
           --no-rephrase          Disable text rephrasing (default)
           --rephrasing-aggressiveness=LEVEL  Set rephrasing level (conservative, medium, aggressive)
@@ -526,8 +549,11 @@ module ProsodicTextConverter
           # Full pipeline with research-grade analysis
           #{$0} --audio=speaker.wav --pitch-backend=sonic_annotator --provider=anthropic --model=claude-3-sonnet text.txt
         #{'  '}
-          # Generate speech with ElevenLabs
+          # Generate speech with ElevenLabs (saves to ./output/ directory by default)
           #{$0} --elevenlabs-voice=21m00Tcm4TlvDq8ikWAM --output=speech.mp3 input.txt
+        #{'  '}
+          # Use custom output directory
+          #{$0} --elevenlabs-voice=21m00Tcm4TlvDq8ikWAM --output-dir=./my_audio --output=speech.mp3 input.txt
         #{'  '}
           # List available ElevenLabs voices
           #{$0} --list-voices

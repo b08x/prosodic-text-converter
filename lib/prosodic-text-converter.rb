@@ -1,5 +1,5 @@
 # frozen_string_literal: true
-
+require "dotenv/load"
 # Attempts to load the .env file, overwriting existing environment variables.
 # If an error occurs, it displays an error message.
 begin

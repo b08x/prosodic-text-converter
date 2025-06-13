@@ -20,8 +20,9 @@ output_dir: "./output"
 verbose: false
 
 # ElevenLabs Configuration (optional)
-elevenlabs_model: "eleven_monolingual_v1"
+elevenlabs_model: "eleven_turbo_v2"
 elevenlabs_voice: "L0Dsvb3SLTyegXwtm47J"
+elevenlabs_voice_id: "L0Dsvb3SLTyegXwtm47J"
 elevenlabs_stability: 0.5
 elevenlabs_similarity_boost: 0.75
 
@@ -47,3 +48,18 @@ enable_rephrasing: false
 rephrasing_aggressiveness: "medium"  # conservative, medium, aggressive
 preserve_meaning_threshold: 0.8     # semantic similarity threshold (0.0-1.0)
 rephrasing_timeout: 45              # timeout for rephrasing requests (seconds)
+
+# Speech Pattern Analysis Configuration
+enable_speech_pattern_analysis: false  # enable spectrogram-based pattern extraction
+speech_pattern_rewriting: false        # enable pattern-based text rewriting
+pattern_analysis_timeout: 120          # timeout for pattern analysis (seconds)
+rewrite_strategy: "hybrid"             # rhythm, stress, intonation, hybrid, comprehensive
+pattern_rewrite_aggressiveness: "medium"  # conservative, medium, aggressive
+pattern_meaning_threshold: 0.85        # semantic similarity threshold for pattern rewriting
+enable_emotional_detection: true       # enable emotional pattern analysis
+detailed_pattern_analysis: true        # enable detailed pattern analysis features
+rhythm_sensitivity: 0.7               # sensitivity for rhythm detection (0.1-1.0)
+stress_detection_threshold: 0.6        # threshold for stress pattern detection
+intonation_smoothing: 0.3             # smoothing factor for intonation analysis
+iterative_pattern_refinement: true     # enable iterative refinement of rewritten text
+max_rewrite_iterations: 3             # maximum iterations for pattern-based rewriting

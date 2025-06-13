@@ -523,10 +523,15 @@ RSpec.describe ProsodicTextConverter::LLMConverter do
     let(:converter_with_config) { described_class.new(logger: mock_logger, config: mock_config) }
 
     context 'when phonemes are enabled and model supports them' do
+      let(:models_config) do
+        { 'eleven_turbo_v2' => { 'supports_phonemes' => true } }
+      end
+
       before do
         allow(mock_config).to receive(:get).with(:elevenlabs_use_phonemes).and_return(true)
         allow(mock_config).to receive(:get).with(:elevenlabs_model_id).and_return('eleven_turbo_v2')
         allow(mock_config).to receive(:get).with(:elevenlabs_model).and_return(nil)
+        allow(mock_config).to receive(:get).with('elevenlabs_models_config', {}).and_return(models_config)
       end
 
       it 'detects phoneme feature is enabled' do
@@ -553,10 +558,15 @@ RSpec.describe ProsodicTextConverter::LLMConverter do
     end
 
     context 'when phonemes are enabled but model does not support them' do
+      let(:models_config) do
+        { 'eleven_basic_v1' => { 'supports_phonemes' => false } }
+      end
+
       before do
         allow(mock_config).to receive(:get).with(:elevenlabs_use_phonemes).and_return(true)
         allow(mock_config).to receive(:get).with(:elevenlabs_model_id).and_return('eleven_basic_v1')
         allow(mock_config).to receive(:get).with(:elevenlabs_model).and_return(nil)
+        allow(mock_config).to receive(:get).with('elevenlabs_models_config', {}).and_return(models_config)
       end
 
       it 'detects phoneme feature is disabled due to model incompatibility' do
@@ -644,6 +654,7 @@ RSpec.describe ProsodicTextConverter::LLMConverter do
     context 'when ElevenLabs v3 model is not configured' do
       before do
         allow(mock_config).to receive(:get).with(:elevenlabs_model_id).and_return('eleven_turbo_v2')
+        allow(mock_config).to receive(:get).with(:elevenlabs_use_phonemes).and_return(false)
       end
 
       it 'detects non-v3 model correctly' do
