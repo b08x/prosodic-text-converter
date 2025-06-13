@@ -1,3 +1,6 @@
 .env
 backlog.json
 docs/Lingua
+/spectrograms/
+/.yardoc/
+.rspec_status

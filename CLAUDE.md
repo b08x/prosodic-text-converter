@@ -10,11 +10,13 @@ This is a Ruby-based prosodic text converter that analyzes audio files to extrac
 
 ### Core Components
 
-- **CLI Interface** (`lib/prosodic-text-converter/core/cli.rb`): Command-line interface with support for multiple pitch analysis backends
+- **CLI Interface** (`lib/prosodic-text-converter/core/cli.rb`): Command-line interface with comprehensive option parsing and ElevenLabs integration
 - **Converter Engine** (`lib/prosodic-text-converter/core/converter.rb`): Main conversion logic orchestrating audio analysis and text processing  
 - **Pitch Analysis** (`lib/prosodic-text-converter/audio/pitch_analyzer.rb`): Factory pattern supporting Aubio and Sonic Annotator backends
-- **Text Processing** (`lib/prosodic-text-converter/text/text_analyzer.rb`): Text analysis and chunking
-- **SSML Generation** (`lib/prosodic-text-converter/conversion/ssml_formatter.rb`): Speech Synthesis Markup Language output
+- **Speech Synthesizer** (`lib/prosodic-text-converter/audio/speech_synthesizer.rb`): Unified interface for speech synthesis with multiple providers
+- **Text Processing** (`lib/prosodic-text-converter/text/text_analyzer.rb`): Advanced text analysis using lingua and pragmatic_tokenizer
+- **SSML Generation** (`lib/prosodic-text-converter/conversion/ssml_formatter.rb`): Speech Synthesis Markup Language output formatting
+- **ElevenLabs Integration** (`lib/prosodic-text-converter/conversion/elevenlabs_formatter.rb`): ElevenLabs-compatible SSML conversion and API integration
 
 ### Audio Analysis Pipeline
 
@@ -29,10 +31,11 @@ Backend selection is handled by `PitchAnalyzerFactory` which auto-detects availa
 
 1. Audio file → Spectrogram generation (SoX)
 2. Pitch analysis (Aubio or Sonic Annotator)  
-3. Prosodic pattern extraction
-4. Text analysis and chunking
-5. LLM-based conversion with prosodic context
-6. SSML output generation
+3. Prosodic pattern extraction and analysis
+4. Text analysis and linguistic preprocessing (lingua, pragmatic_tokenizer)
+5. LLM-based conversion with prosodic context (multi-provider support)
+6. SSML output generation and validation
+7. Optional: ElevenLabs speech synthesis with optimized SSML formatting
 
 ## Development Commands
 
@@ -51,14 +54,41 @@ bundle install
 ### Testing and Quality
 
 ```bash
-# Run RSpec tests (note: test suite may not be fully implemented yet)
+# Run RSpec tests
 bundle exec rspec
+bundle exec rake spec
+
+# Run all tests including coverage
+bundle exec rake test
+bundle exec rake coverage
 
 # Run RuboCop linting
 bundle exec rubocop
+bundle exec rake rubocop
 
 # Auto-fix RuboCop issues
 bundle exec rubocop -a
+bundle exec rake rubocop:auto_correct
+
+# Run comprehensive quality checks
+bundle exec rake quality
+
+# Check documentation coverage
+bundle exec rake doc_coverage
+
+# Generate documentation
+bundle exec rake docs          # Generate both RDoc and YARD documentation
+bundle exec rake rdoc          # Generate RDoc only
+bundle exec rake yard          # Generate YARD only (if available)
+bundle exec rake yard:serve    # Serve YARD docs locally
+bundle exec rake clean_docs    # Remove generated documentation
+
+# Comprehensive checks
+bundle exec rake check         # Run all checks (tests, linting, documentation)
+bundle exec rake default       # Run default task (test + quality)
+
+# Get help with available tasks
+bundle exec rake help
 ```
 
 ### Running the Application
@@ -69,6 +99,9 @@ bundle exec rubocop -a
 
 # List available pitch analysis backends
 ./bin/prosodic-text-converter --list-backends
+
+# List available ElevenLabs voices
+./bin/prosodic-text-converter --list-voices
 
 # Health check for dependencies
 ./bin/prosodic-text-converter --health-check
@@ -81,6 +114,12 @@ bundle exec rubocop -a
 
 # Analysis only (no text conversion)
 ./bin/prosodic-text-converter --audio=voice.wav --analyze-only --verbose
+
+# Generate speech with ElevenLabs integration
+./bin/prosodic-text-converter --elevenlabs-voice=21m00Tcm4TlvDq8ikWAM --output=speech.mp3 input.txt
+
+# Complete pipeline: analyze audio, convert text, and synthesize speech
+./bin/prosodic-text-converter --audio=sample.wav --elevenlabs-voice=21m00Tcm4TlvDq8ikWAM --output=result.mp3 text.txt
 ```
 
 ## Key Dependencies
@@ -95,9 +134,13 @@ bundle exec rubocop -a
 ### Ruby Gems
 
 - `ruby_llm`: Multi-provider LLM interface (OpenAI, Anthropic, Ollama)
-- `pragmatic_tokenizer`: Text tokenization
-- `nokogiri`: XML/HTML processing
-- `mini_magick`: ImageMagick interface
+- `pragmatic_tokenizer`: Text tokenization and segmentation
+- `pragmatic_segmenter`: Advanced sentence segmentation
+- `lingua`: Natural language readability analysis
+- `nokogiri`: XML/HTML processing for SSML manipulation
+- `mini_magick`: ImageMagick interface for spectrogram processing
+- `csv`: CSV parsing for pitch analysis data
+- `benchmark`: Performance measurement utilities
 
 ## Docker Usage
 
@@ -207,6 +250,10 @@ The container includes:
 # LLM API keys (at least one required)
 export OPENAI_API_KEY="your-key-here"
 export ANTHROPIC_API_KEY="your-key-here"
+export GEMINI_API_KEY="your-key-here"
+
+# ElevenLabs API key (required for speech synthesis)
+export ELEVENLABS_API_KEY="your-key-here"
 
 # Optional: Default backend selection
 export PROSODIC_PITCH_BACKEND="aubio"  # or "sonic_annotator"
@@ -226,6 +273,41 @@ Sonic Annotator uses N3 transform files in the `transforms/` directory:
 - `onset_detection.n3`: Note onset detection
 
 Note: Transform files are now created entirely by the Ruby application when the SonicAnnotatorPitchAnalyzer is instantiated, eliminating the need for separate setup scripts.
+
+## ElevenLabs Speech Synthesis Integration
+
+The application includes comprehensive ElevenLabs API integration for high-quality speech synthesis:
+
+### Features
+
+- **SSML Compatibility**: Automatic conversion of standard SSML to ElevenLabs-compatible format
+- **Voice Management**: List and select from available ElevenLabs voices
+- **Model Support**: Support for various ElevenLabs models with automatic feature detection
+- **Break Time Optimization**: Automatic capping of break times to ElevenLabs' 3-second maximum
+- **Prosody Normalization**: Intelligent conversion of prosody attributes for optimal compatibility
+
+### ElevenLabs Commands
+
+```bash
+# List available voices
+./bin/prosodic-text-converter --list-voices
+
+# Generate speech with specific voice
+./bin/prosodic-text-converter --elevenlabs-voice=21m00Tcm4TlvDq8ikWAM --output=output.mp3 input.txt
+
+# Use specific ElevenLabs model
+./bin/prosodic-text-converter --elevenlabs-voice=21m00Tcm4TlvDq8ikWAM --elevenlabs-model=eleven_flash_v2 --output=speech.mp3 input.txt
+
+# Complete workflow: analyze audio, convert text, synthesize speech
+./bin/prosodic-text-converter --audio=reference.wav --elevenlabs-voice=21m00Tcm4TlvDq8ikWAM --output=final.mp3 document.txt
+```
+
+### Environment Setup
+
+```bash
+# Required for ElevenLabs integration
+export ELEVENLABS_API_KEY="your-elevenlabs-api-key"
+```
 
 ## Known Issues and Backlog
 
@@ -258,12 +340,36 @@ The canonical version in the `audio/` directory should be preferred.
 
 ## Testing Strategy
 
-Tests should focus on:
-- Backend availability detection
-- Audio analysis pipeline with both backends
-- LLM integration with multiple providers
-- SSML output validation
-- Error handling for missing dependencies
+The project uses RSpec for testing with the following focus areas:
+
+### Current Test Coverage
+- ElevenLabs formatter and SSML compatibility (`spec/elevenlabs_formatter_spec.rb`)
+- RSpec configuration with documentation format and color output (`spec/spec_helper.rb`)
+
+### Key Testing Areas
+- Backend availability detection and factory pattern
+- Audio analysis pipeline validation with both Aubio and Sonic Annotator
+- LLM integration with multiple providers (OpenAI, Anthropic, Gemini)
+- SSML output validation and formatting
+- ElevenLabs API integration and voice management
+- Error handling for missing dependencies and timeouts
+- Transform file generation for Sonic Annotator
+- Prosodic pattern extraction and analysis
+
+### Running Tests
+```bash
+# Run all RSpec tests
+bundle exec rspec
+
+# Run specific test file
+bundle exec rspec spec/elevenlabs_formatter_spec.rb
+
+# Run with coverage reporting
+bundle exec rake coverage
+
+# Run all quality checks including tests
+bundle exec rake check
+```
 
 ## Development Guidance
 
@@ -283,3 +389,14 @@ Tests should focus on:
 - Use the factory pattern to support multiple pitch analysis backends
 - Detect available tools at runtime rather than hardcoding dependencies
 - Provide fallback mechanisms when preferred backends are unavailable
+
+### Rake Task System
+The project includes a comprehensive Rake task system for development workflow:
+
+- **Documentation**: Generate RDoc and YARD documentation with coverage analysis
+- **Quality Assurance**: RuboCop linting with auto-correction capabilities
+- **Testing**: RSpec test execution with coverage reporting
+- **Build Management**: Clean builds with fresh documentation generation
+- **Validation**: Documentation coverage checking and example validation
+
+Use `bundle exec rake help` to see all available tasks and their descriptions. The Rakefile includes error handling for missing dependencies (like YARD) and provides fallback options.
