@@ -35,13 +35,15 @@ module ProsodicTextConverter
     # @param provider [Symbol] LLM provider (:gemini, :openai, :anthropic, etc.)
     # @param model [String] model name to use
     # @param pitch_backend [Symbol] pitch analysis backend (:aubio, :sonic_annotator)
+    # @param config [Config, nil] configuration object for rephrasing options
     # @param llm_options [Hash] additional options for LLM
     # @raise [ArgumentError] if required dependencies are missing
     # @raise [RuntimeError] if initialization fails
     def initialize(pattern: nil, provider: :gemini, model: 'gemini-2.0-flash', pitch_backend: :aubio,
-                   output_dir: './output', **llm_options)
+                   output_dir: './output', config: nil, **llm_options)
       @pitch_backend = pitch_backend
       @output_dir = output_dir
+      @config = config
 
       begin
         logger.info("Initializing Converter with provider: #{provider}, model: #{model}, backend: #{pitch_backend}")
@@ -86,6 +88,28 @@ module ProsodicTextConverter
         end
         logger.debug("Text analyzed: #{text_analysis[:sentence_count]} sentences")
 
+        # Optional rephrasing step for prosodic optimization
+        if @config&.rephrasing_enabled?
+          logger.info("Rephrasing enabled, applying SFL-based optimization")
+          begin
+            rephrasing_options = {
+              aggressiveness: @config.rephrasing_aggressiveness,
+              meaning_threshold: @config.preserve_meaning_threshold,
+              timeout: @config.rephrasing_timeout
+            }
+            
+            text_analysis = Timeout.timeout(@config.rephrasing_timeout + 10) do
+              @converter.rephrase_for_prosody(text_analysis, @pattern, rephrasing_options)
+            end
+            logger.debug("Text rephrasing completed successfully")
+          rescue StandardError => e
+            logger.warn("Text rephrasing failed, proceeding with original text: #{e.message}")
+            # Continue with original text_analysis if rephrasing fails
+          end
+        else
+          logger.debug("Rephrasing disabled, proceeding with original text")
+        end
+
         # Convert with LLM and timeout (pass rich text analysis and prosodic context)
         ssml_output = Timeout.timeout(120) do
           @converter.convert_text_with_analysis(text_analysis, @pattern)
@@ -99,7 +123,7 @@ module ProsodicTextConverter
         conversion_time = Time.now - start_time
         logger.info("Text conversion completed in #{conversion_time.round(2)}s")
 
-        {
+        result = {
           original_text: text,
           ssml_output: validated_ssml,
           pattern_used: @pattern.to_h,
@@ -107,6 +131,18 @@ module ProsodicTextConverter
           sentences_processed: text_analysis[:sentence_count],
           conversion_time: conversion_time
         }
+
+        # Add rephrasing information if it was applied
+        if text_analysis[:rephrasing_applied]
+          result[:rephrasing_applied] = true
+          result[:original_text_before_rephrasing] = text_analysis[:original_text_before_rephrasing]
+          result[:rephrased_text] = text_analysis[:original_text]
+          result[:rephrasing_time] = text_analysis[:rephrasing_time]
+        else
+          result[:rephrasing_applied] = false
+        end
+
+        result
       rescue Timeout::Error => e
         error_msg = "Text conversion timed out: #{e.message}"
         logger.error(error_msg)
