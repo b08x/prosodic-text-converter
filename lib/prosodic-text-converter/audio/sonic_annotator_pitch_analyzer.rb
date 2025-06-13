@@ -9,7 +9,7 @@ require 'rdf'
 require 'rdf/turtle'
 
 module ProsodicTextConverter
-  # Sonic Annotator implementation with RDF-based output parsing using pYIN
+  # Sonic Annotator implementation with CSV-based output parsing using pYIN
   #
   # @example Basic usage
   #   analyzer = SonicAnnotatorPitchAnalyzer.new
@@ -27,13 +27,16 @@ module ProsodicTextConverter
     # @return [String] path to transform files directory
     attr_reader :transform_dir
 
-    # Initialize Sonic Annotator pitch analyzer with RDF output
+    # @return [String] path to vamp plugins directory
+    attr_reader :vamp_path
+
+    # Initialize Sonic Annotator pitch analyzer with CSV output
     #
     # @param plugin [String] Vamp plugin identifier
     # @param step_size [Integer] step size in samples
     # @param block_size [Integer] block size in samples
     # @raise [RuntimeError] if sonic-annotator is not available
-    def initialize(plugin: 'pyin:pyin:f0candidates', step_size: 256, block_size: 2048)
+    def initialize(plugin: 'pyin:pyin:smoothedpitchtrack', step_size: 256, block_size: 2048)
       super()
       @plugin = plugin
       @step_size = step_size
@@ -43,8 +46,8 @@ module ProsodicTextConverter
       begin
         logger.info("Initializing Sonic Annotator analyzer (#{@plugin})")
         ensure_transform_directory
-        ensure_all_transforms
         validate_dependencies
+        ensure_all_transforms
         logger.info('Sonic Annotator analyzer initialized successfully')
       rescue StandardError => e
         logger.error("Failed to initialize Sonic Annotator analyzer: #{e.message}")
@@ -52,7 +55,7 @@ module ProsodicTextConverter
       end
     end
 
-    # Analyze audio file using Sonic Annotator with RDF output
+    # Analyze audio file using Sonic Annotator with CSV output
     #
     # @param audio_file [String] path to audio file
     # @return [Array<Hash>] comprehensive pitch and prosodic analysis data
@@ -62,18 +65,18 @@ module ProsodicTextConverter
       validate_audio_file(audio_file)
 
       begin
-        logger.info("Starting Sonic Annotator RDF analysis: #{File.basename(audio_file)}")
+        logger.info("Starting Sonic Annotator CSV analysis: #{File.basename(audio_file)}")
         start_time = Time.now
 
-        # Extract pitch data with timeout using RDF output
+        # Extract pitch data with timeout using CSV output
         pitch_data = Timeout.timeout(300) do # 5 minute timeout
-          extract_pitch_data_rdf(audio_file)
+          extract_pitch_data_csv(audio_file)
         end
         logger.debug("Pitch extraction completed, #{pitch_data.length} data points")
 
         # Extract tempo data with timeout (optional, non-failing)
         tempo_data = Timeout.timeout(180) do # 3 minute timeout
-          extract_tempo_data_rdf(audio_file)
+          extract_tempo_data_csv(audio_file)
         end
         logger.debug("Tempo extraction completed, #{tempo_data.length} data points")
 
@@ -81,7 +84,7 @@ module ProsodicTextConverter
         result = combine_analysis_results(pitch_data, tempo_data)
 
         analysis_time = Time.now - start_time
-        logger.info("Sonic Annotator RDF analysis completed in #{analysis_time.round(2)}s")
+        logger.info("Sonic Annotator CSV analysis completed in #{analysis_time.round(2)}s")
 
         result
       rescue Timeout::Error
@@ -98,21 +101,23 @@ module ProsodicTextConverter
 
     private
 
-    # Extract pitch data using pYIN transform with RDF output
+    # Extract pitch data using pYIN transform with CSV output
     #
     # @param audio_file [String] path to audio file
     # @return [Array<Hash>] pitch analysis data
     # @raise [RuntimeError] if extraction fails
-    def extract_pitch_data_rdf(audio_file)
+    def extract_pitch_data_csv(audio_file)
       transform_file = create_pyin_transform
-      logger.debug('Running pYIN pitch analysis with RDF output')
+      logger.debug('Running pYIN pitch analysis with CSV output')
 
-      # Use RDF output format instead of CSV
+      # Use CSV output format which is more reliable
+      env = { 'VAMP_PATH' => @vamp_path }
       stdout, stderr, status = Open3.capture3(
+        env,
         'sonic-annotator', '-q',
         '-t', transform_file,
         audio_file,
-        '-w', 'rdf'
+        '-w', 'csv', '--csv-stdout'
       )
 
       unless status.success?
@@ -121,27 +126,29 @@ module ProsodicTextConverter
         raise error_msg.to_s
       end
 
-      pitch_data = parse_rdf_output(stdout)
-      logger.debug("Extracted #{pitch_data.length} pitch data points from RDF")
+      pitch_data = parse_csv_output(stdout)
+      logger.debug("Extracted #{pitch_data.length} pitch data points from CSV")
       pitch_data
     rescue StandardError => e
       logger.error("Failed to extract pitch data: #{e.message}")
       raise "Pitch data extraction failed: #{e.message}"
     end
 
-    # Extract tempo data using rhythm analysis with RDF output (optional, non-failing)
+    # Extract tempo data using rhythm analysis with CSV output (optional, non-failing)
     #
     # @param audio_file [String] path to audio file
     # @return [Array<Hash>] tempo analysis data
-    def extract_tempo_data_rdf(audio_file)
+    def extract_tempo_data_csv(audio_file)
       transform_file = create_tempo_transform
-      logger.debug('Running tempo/rhythm analysis with RDF output')
+      logger.debug('Running tempo/rhythm analysis with CSV output')
 
+      env = { 'VAMP_PATH' => @vamp_path }
       stdout, stderr, status = Open3.capture3(
+        env,
         'sonic-annotator', '-q',
         '-t', transform_file,
         audio_file,
-        '-w', 'rdf'
+        '-w', 'csv', '--csv-stdout'
       )
 
       # Don't fail if tempo analysis fails - it's supplementary
@@ -150,8 +157,8 @@ module ProsodicTextConverter
         return []
       end
 
-      tempo_data = parse_tempo_rdf_output(stdout)
-      logger.debug("Extracted #{tempo_data.length} tempo data points from RDF")
+      tempo_data = parse_tempo_csv_output(stdout)
+      logger.debug("Extracted #{tempo_data.length} tempo data points from CSV")
       tempo_data
     rescue StandardError => e
       logger.warn("Failed to extract tempo data (optional): #{e.message}")
@@ -174,6 +181,10 @@ module ProsodicTextConverter
 
       logger.debug('Sonic Annotator found')
 
+      # Set VAMP_PATH to local vamp directory
+      @vamp_path = File.join(File.dirname(__FILE__), '..', '..', '..', 'vamp')
+      @vamp_path = File.expand_path(@vamp_path)
+      
       # Check for required Vamp plugins
       check_vamp_plugins
     rescue Timeout::Error
@@ -190,8 +201,9 @@ module ProsodicTextConverter
     #
     # @return [void]
     def check_vamp_plugins
+      env = { 'VAMP_PATH' => @vamp_path }
       stdout, stderr, status = Timeout.timeout(15) do
-        Open3.capture3('sonic-annotator', '-l')
+        Open3.capture3(env, 'sonic-annotator', '-l')
       end
 
       unless status.success?
@@ -218,44 +230,24 @@ module ProsodicTextConverter
       logger.warn("Error checking Vamp plugins: #{e.message}")
     end
 
-    # Parse RDF output for pitch data
+    # Parse CSV output for pitch data
     #
-    # @param rdf_output [String] RDF/Turtle formatted output from Sonic Annotator
+    # @param csv_output [String] CSV formatted output from Sonic Annotator
     # @return [Array<Hash>] parsed pitch data
-    def parse_rdf_output(rdf_output)
+    def parse_csv_output(csv_output)
       pitch_data = []
 
-      begin
-        # Parse the RDF graph
-        graph = RDF::Graph.new
-        RDF::Turtle::Reader.new(rdf_output) do |reader|
-          reader.each_statement do |statement|
-            graph << statement
-          end
-        end
+      csv_output.each_line do |line|
+        line = line.strip
+        next if line.empty?
 
-        # Query for pitch data using VAMP ontology
-        # Look for events with time and value properties
-        graph.each_statement do |stmt|
-          # Find events that have time and pitch values
-          next unless stmt.predicate.to_s.include?('time') || stmt.predicate.to_s.include?('value')
+        # Parse CSV line: "filename",timestamp,frequency
+        parts = line.split(',')
+        next unless parts.length >= 3
 
-          event_uri = stmt.subject
-
-          # Get timestamp
-          time_query = graph.query([event_uri, :predicate, :object]).select do |s|
-            s.predicate.to_s.include?('time')
-          end
-
-          # Get frequency value
-          value_query = graph.query([event_uri, :predicate, :object]).select do |s|
-            s.predicate.to_s.include?('value')
-          end
-
-          next unless !time_query.empty? && !value_query.empty?
-
-          timestamp = time_query.first.object.to_f
-          frequency = value_query.first.object.to_f
+        begin
+          timestamp = parts[1].to_f
+          frequency = parts[2].to_f
 
           # Filter reasonable speech range and non-zero values
           next unless frequency >= 50.0 && frequency <= 800.0
@@ -265,55 +257,35 @@ module ProsodicTextConverter
             frequency: frequency,
             confidence: 1.0 # pYIN provides high-confidence smoothed output
           }
+        rescue StandardError => e
+          logger.warn("Skipping invalid CSV line: #{line} (#{e.message})")
+          next
         end
-
-        # Sort by timestamp
-        pitch_data.sort_by! { |point| point[:timestamp] }
-      rescue StandardError => e
-        logger.error("Error parsing RDF output: #{e.message}")
-        # Fallback to empty array
-        pitch_data = []
       end
 
+      # Sort by timestamp
+      pitch_data.sort_by! { |point| point[:timestamp] }
       pitch_data
     end
 
-    # Parse RDF output for tempo data
+    # Parse CSV output for tempo data
     #
-    # @param rdf_output [String] RDF/Turtle formatted output from Sonic Annotator
+    # @param csv_output [String] CSV formatted output from Sonic Annotator
     # @return [Array<Hash>] parsed tempo data
-    def parse_tempo_rdf_output(rdf_output)
+    def parse_tempo_csv_output(csv_output)
       tempo_data = []
 
-      begin
-        # Parse the RDF graph
-        graph = RDF::Graph.new
-        RDF::Turtle::Reader.new(rdf_output) do |reader|
-          reader.each_statement do |statement|
-            graph << statement
-          end
-        end
+      csv_output.each_line do |line|
+        line = line.strip
+        next if line.empty?
 
-        # Query for tempo events
-        graph.each_statement do |stmt|
-          next unless stmt.predicate.to_s.include?('time') || stmt.predicate.to_s.include?('value')
+        # Parse CSV line: "filename",timestamp,value
+        parts = line.split(',')
+        next unless parts.length >= 3
 
-          event_uri = stmt.subject
-
-          # Get timestamp
-          time_query = graph.query([event_uri, :predicate, :object]).select do |s|
-            s.predicate.to_s.include?('time')
-          end
-
-          # Get tempo value
-          value_query = graph.query([event_uri, :predicate, :object]).select do |s|
-            s.predicate.to_s.include?('value')
-          end
-
-          next unless !time_query.empty? && !value_query.empty?
-
-          timestamp = time_query.first.object.to_f
-          tempo = value_query.first.object.to_f
+        begin
+          timestamp = parts[1].to_f
+          tempo = parts[2].to_f
 
           next unless tempo > 0
 
@@ -321,15 +293,14 @@ module ProsodicTextConverter
             timestamp: timestamp,
             tempo: tempo
           }
+        rescue StandardError => e
+          logger.warn("Skipping invalid tempo CSV line: #{line} (#{e.message})")
+          next
         end
-
-        # Sort by timestamp
-        tempo_data.sort_by! { |point| point[:timestamp] }
-      rescue StandardError => e
-        logger.error("Error parsing tempo RDF output: #{e.message}")
-        tempo_data = []
       end
 
+      # Sort by timestamp
+      tempo_data.sort_by! { |point| point[:timestamp] }
       tempo_data
     end
 
@@ -346,154 +317,50 @@ module ProsodicTextConverter
     end
 
     def ensure_all_transforms
-      # Create all transform files programmatically to eliminate dependency on setup scripts
+      # Create all transform files programmatically using skeleton generation
       create_pyin_transform
       create_tempo_transform
-      create_fundamental_freq_transform
-      create_onset_detection_transform
     end
 
     def create_pyin_transform
       transform_file = File.join(@transform_dir, 'pyin_pitch.n3')
 
-      transform_content = <<~N3
-        @prefix xsd:      <http://www.w3.org/2001/XMLSchema#> .
-        @prefix vamp:     <http://purl.org/ontology/vamp/> .
-        @prefix :         <#> .
+      # Generate proper transform file using sonic-annotator skeleton
+      env = { 'VAMP_PATH' => @vamp_path }
+      stdout, stderr, status = Open3.capture3(
+        env,
+        'sonic-annotator', '-s', 'vamp:pyin:pyin:smoothedpitchtrack'
+      )
 
-        :transform_plugin a vamp:Plugin ;
-            vamp:identifier "pyin" .
+      unless status.success?
+        error_msg = "Failed to generate pyin transform: #{stderr.strip}"
+        logger.error(error_msg)
+        raise error_msg.to_s
+      end
 
-        :transform_library a vamp:PluginLibrary ;
-            vamp:identifier "pyin" ;
-            vamp:available_plugin :transform_plugin .
-
-        :transform a vamp:Transform ;
-            vamp:plugin :transform_plugin ;
-            vamp:step_size "#{@step_size}"^^xsd:int ;#{' '}
-            vamp:block_size "#{@block_size}"^^xsd:int ;#{' '}
-            vamp:plugin_version """3""" ;#{' '}
-            vamp:parameter_binding [
-                vamp:parameter [ vamp:identifier "lowampsuppression" ] ;
-                vamp:value "0.1"^^xsd:float ;
-            ] ;
-            vamp:parameter_binding [
-                vamp:parameter [ vamp:identifier "onsetsensitivity" ] ;
-                vamp:value "0.7"^^xsd:float ;
-            ] ;
-            vamp:parameter_binding [
-                vamp:parameter [ vamp:identifier "outputunvoiced" ] ;
-                vamp:value "0"^^xsd:float ;
-            ] ;
-            vamp:parameter_binding [
-                vamp:parameter [ vamp:identifier "precisetime" ] ;
-                vamp:value "1"^^xsd:float ;
-            ] ;
-            vamp:output [ vamp:identifier "smoothedpitchtrack" ] .
-      N3
-
-      File.write(transform_file, transform_content)
+      File.write(transform_file, stdout)
+      logger.debug("Generated pyin transform: #{transform_file}")
       transform_file
     end
 
     def create_tempo_transform
       transform_file = File.join(@transform_dir, 'tempo.n3')
 
-      transform_content = <<~N3
-        @prefix xsd:      <http://www.w3.org/2001/XMLSchema#> .
-        @prefix vamp:     <http://purl.org/ontology/vamp/> .
-        @prefix :         <#> .
+      # Generate proper transform file using sonic-annotator skeleton
+      env = { 'VAMP_PATH' => @vamp_path }
+      stdout, stderr, status = Open3.capture3(
+        env,
+        'sonic-annotator', '-s', 'vamp:vamp-example-plugins:fixedtempo:tempo'
+      )
 
-        :transform_plugin a vamp:Plugin ;
-            vamp:identifier "fixedtempo" .
+      unless status.success?
+        error_msg = "Failed to generate tempo transform: #{stderr.strip}"
+        logger.error(error_msg)
+        raise error_msg.to_s
+      end
 
-        :transform_library a vamp:PluginLibrary ;
-            vamp:identifier "vamp-example-plugins" ;
-            vamp:available_plugin :transform_plugin .
-
-        :transform a vamp:Transform ;
-            vamp:plugin :transform_plugin ;
-            vamp:step_size "256"^^xsd:int ;
-            vamp:block_size "256"^^xsd:int ;
-            vamp:plugin_version """1""" ;
-            vamp:parameter_binding [
-                vamp:parameter [ vamp:identifier "maxbpm" ] ;
-                vamp:value "220"^^xsd:float ;
-            ] ;
-            vamp:parameter_binding [
-                vamp:parameter [ vamp:identifier "minbpm" ] ;
-                vamp:value "20"^^xsd:float ;
-            ] ;
-            vamp:output [ vamp:identifier "tempo" ] .
-      N3
-
-      File.write(transform_file, transform_content)
-      transform_file
-    end
-
-    def create_fundamental_freq_transform
-      transform_file = File.join(@transform_dir, 'fundamental_freq.n3')
-
-      transform_content = <<~N3
-        @prefix xsd:      <http://www.w3.org/2001/XMLSchema#> .
-        @prefix vamp:     <http://purl.org/ontology/vamp/> .
-        @prefix :         <#> .
-
-        :transform_plugin a vamp:Plugin ;
-            vamp:identifier "f0" .
-
-        :transform_library a vamp:PluginLibrary ;
-            vamp:identifier "vamp-libxtract" ;
-            vamp:available_plugin :transform_plugin .
-
-        :transform a vamp:Transform ;
-            vamp:plugin :transform_plugin ;
-            vamp:step_size "512"^^xsd:int ;
-            vamp:block_size "1024"^^xsd:int ;
-            vamp:plugin_version """4""" ;
-            vamp:output [ vamp:identifier "f0" ] .
-      N3
-
-      File.write(transform_file, transform_content)
-      transform_file
-    end
-
-    def create_onset_detection_transform
-      transform_file = File.join(@transform_dir, 'onset_detection.n3')
-
-      transform_content = <<~N3
-        @prefix xsd:      <http://www.w3.org/2001/XMLSchema#> .
-        @prefix vamp:     <http://purl.org/ontology/vamp/> .
-        @prefix :         <#> .
-
-        :transform_plugin a vamp:Plugin ;
-            vamp:identifier "aubionotes" .
-
-        :transform_library a vamp:PluginLibrary ;
-            vamp:identifier "vamp-aubio" ;
-            vamp:available_plugin :transform_plugin .
-
-        :transform a vamp:Transform ;
-            vamp:plugin :transform_plugin ;
-            vamp:step_size "512"^^xsd:int ;#{' '}
-            vamp:block_size "2048"^^xsd:int ;#{' '}
-            vamp:plugin_version """4""" ;#{' '}
-            vamp:parameter_binding [
-                vamp:parameter [ vamp:identifier "onsettype" ] ;
-                vamp:value "3"^^xsd:float ;
-            ] ;
-            vamp:parameter_binding [
-                vamp:parameter [ vamp:identifier "peakpickthreshold" ] ;
-                vamp:value "0.3"^^xsd:float ;
-            ] ;
-            vamp:parameter_binding [
-                vamp:parameter [ vamp:identifier "silencethreshold" ] ;
-                vamp:value "-70"^^xsd:float ;
-            ] ;
-            vamp:output [ vamp:identifier "notes" ] .
-      N3
-
-      File.write(transform_file, transform_content)
+      File.write(transform_file, stdout)
+      logger.debug("Generated tempo transform: #{transform_file}")
       transform_file
     end
 
