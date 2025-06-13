@@ -31,3 +31,5 @@ gem "rdf", "~> 3.3"
 gem "rdf-turtle", "~> 3.3"
 
 gem "aubio", "~> 0.3.6"
+
+gem "ostruct", "~> 0.6.1"

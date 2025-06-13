@@ -1,0 +1,1 @@
+Advanced Micro Devices (AMD) has unveiled new details about its next-generation AI chips. The Instinct MI400 series will ship next year. They can be assembled into full server racks with thousands of chips. AMD's rack-scale setup will make the chips look to users like one system, which is important for most customers who develop large language models.
