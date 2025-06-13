@@ -1,0 +1,19 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Add lib directory to load path
+$LOAD_PATH.unshift File.expand_path('../lib', __dir__)
+
+require 'prosodic-text-converter'
+require 'prosodic-text-converter/core/tui'
+
+# Run the TUI
+begin
+  ProsodicTextConverter::TUI.new.run
+rescue Interrupt
+  puts "\nOperation cancelled by user"
+  exit 130
+rescue StandardError => e
+  puts "Error: #{e.message}"
+  exit 1
+end

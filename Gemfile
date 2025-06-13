@@ -36,3 +36,6 @@ gem 'ostruct', '~> 0.6.1'
 
 gem 'dotenv', '~> 3.1'
 gem 'tty-config', '~> 0.6.0'
+gem 'tty-prompt', '~> 0.23.1'
+
+gem "clipboard", "~> 2.0"
