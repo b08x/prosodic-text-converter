@@ -141,7 +141,7 @@ module ProsodicTextConverter
 
         # Analyze spectrogram for prosodic patterns with timeout
         analysis_result = Timeout.timeout(120) do
-          @spectrogram_analyzer.analyze(spectrogram_result[:spectrogram_file])
+          @spectrogram_analyzer.analyze(spectrogram_result[:spectrogram_file], audio_file: audio_file)
         end
         logger.debug('Audio analysis completed')
 

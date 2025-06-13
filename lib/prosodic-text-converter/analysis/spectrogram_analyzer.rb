@@ -29,13 +29,14 @@ module ProsodicTextConverter
     # Analyze spectrogram file to extract prosodic patterns
     #
     # @param spectrogram_file [String] path to spectrogram image file
+    # @param audio_file [String, nil] path to original audio file (optional, will be derived if not provided)
     # @return [Hash] comprehensive analysis results with prosodic features
     # @raise [RuntimeError] if spectrogram file not found
-    def analyze(spectrogram_file)
+    def analyze(spectrogram_file, audio_file: nil)
       raise "Spectrogram file not found: #{spectrogram_file}" unless File.exist?(spectrogram_file)
 
-      # Get the original audio file path from spectrogram filename
-      audio_file = derive_audio_file_path(spectrogram_file)
+      # Get the original audio file path - use provided path or derive from spectrogram filename
+      audio_file = audio_file || derive_audio_file_path(spectrogram_file)
 
       image = MiniMagick::Image.open(spectrogram_file)
 

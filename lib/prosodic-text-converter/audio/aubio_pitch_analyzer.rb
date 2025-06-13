@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'shellwords'
 
 # FFI-based audio analysis
 begin
@@ -63,32 +64,55 @@ module ProsodicTextConverter
 
         pitch_data = []
 
-        # Initialize Aubio components via FFI
-        source = Aubio::Source.new(audio_file, sample_rate: @sample_rate, hop_size: @hop_size)
-        pitch_detector = Aubio::Pitch.new(algorithm: @algorithm, buffer_size: @buffer_size,
-                                          hop_size: @hop_size, sample_rate: @sample_rate)
+        # Convert MP3 to WAV if needed (aubio gem works better with WAV)
+        working_file = audio_file
+        if File.extname(audio_file).downcase == '.mp3'
+          working_file = "/tmp/aubio_#{Process.pid}_#{Time.now.to_i}.wav"
+          unless system("sox #{audio_file.shellescape} #{working_file.shellescape}", out: File::NULL, err: File::NULL)
+            raise "Failed to convert MP3 to WAV for aubio processing"
+          end
+        end
 
-        # Process audio in chunks
-        frame_count = 0
+        # Initialize Aubio components via correct API
+        aubio_params = {
+          sample_rate: @sample_rate,
+          hop_size: @hop_size,
+          window_size: @buffer_size,
+          pitch_method: @algorithm == 'yin' ? 'yinfast' : @algorithm,
+          confidence_thresh: 0.7
+        }
+        
+        aubio = Aubio.open(working_file, aubio_params)
 
-        while source.do_multi
-          samples = source.get_next_samples
-          break if samples.empty?
+        # Process audio and extract pitch data
+        frame_time = @hop_size / @sample_rate.to_f
+        current_time = 0.0
 
-          # Extract pitch for this frame
-          frequency = pitch_detector.do(samples)
-          timestamp = frame_count * @hop_size / @sample_rate.to_f
+        aubio.pitches.each do |pitch_info|
+          frequency = pitch_info[:pitch]
+          confidence = pitch_info[:confidence]
 
-          # Filter out unvoiced segments and unreasonable frequencies
-          if frequency >= 50.0 && frequency <= 800.0 # Reasonable speech range
-            pitch_data << {
-              timestamp: timestamp,
-              frequency: frequency
-            }
+          # Convert MIDI note to frequency if needed and filter reasonable speech range
+          if frequency > 0 && confidence > aubio_params[:confidence_thresh]
+            # If pitch is in MIDI format, convert to Hz
+            freq_hz = frequency > 20 ? frequency : 440 * (2**((frequency - 69) / 12.0))
+            
+            if freq_hz >= 50.0 && freq_hz <= 800.0 # Reasonable speech range
+              pitch_data << {
+                timestamp: current_time,
+                frequency: freq_hz,
+                confidence: confidence
+              }
+            end
           end
 
-          frame_count += 1
+          current_time += frame_time
         end
+
+        aubio.close
+
+        # Clean up temporary file if created
+        File.unlink(working_file) if working_file != audio_file && File.exist?(working_file)
 
         analysis_time = Time.now - start_time
         logger.info("FFI Aubio analysis completed in #{analysis_time.round(2)}s, #{pitch_data.length} data points")
@@ -106,6 +130,11 @@ module ProsodicTextConverter
         logger.error(error_msg)
         logger.debug("Backtrace: #{e.backtrace.join("\n")}")
         raise error_msg.to_s
+      ensure
+        # Clean up temporary file if it was created and still exists
+        if defined?(working_file) && working_file != audio_file && File.exist?(working_file)
+          File.unlink(working_file) rescue nil
+        end
       end
     end
   end

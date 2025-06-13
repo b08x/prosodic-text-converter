@@ -4,3 +4,4 @@ docs/Lingua
 /spectrograms/
 /.yardoc/
 .rspec_status
+/log/
