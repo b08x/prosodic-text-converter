@@ -3,8 +3,8 @@
 require 'spec_helper'
 
 RSpec.describe ProsodicTextConverter::LLMConverter do
-  let(:test_text) { "Hello world. This is a test sentence." }
-  let(:test_chunks) { ["Hello world.", "This is a test sentence."] }
+  let(:test_text) { 'Hello world. This is a test sentence.' }
+  let(:test_chunks) { ['Hello world.', 'This is a test sentence.'] }
   let(:mock_logger) { instance_double(Logger) }
   let(:mock_pattern) { instance_double(ProsodicTextConverter::ProsodicPattern) }
   let(:mock_client) { instance_double('RubyLLM::Client') }
@@ -18,26 +18,26 @@ RSpec.describe ProsodicTextConverter::LLMConverter do
       sentences: [
         {
           index: 0,
-          text: "Hello world.",
+          text: 'Hello world.',
           word_count: 2,
           words: [
-            { text: "Hello", syllable_count: 2 },
-            { text: "world", syllable_count: 1 }
+            { text: 'Hello', syllable_count: 2 },
+            { text: 'world', syllable_count: 1 }
           ],
-          pause_indicators: ["."]
+          pause_indicators: ['.']
         },
         {
           index: 1,
-          text: "This is a test sentence.",
+          text: 'This is a test sentence.',
           word_count: 5,
           words: [
-            { text: "This", syllable_count: 1 },
-            { text: "is", syllable_count: 1 },
-            { text: "a", syllable_count: 1 },
-            { text: "test", syllable_count: 1 },
-            { text: "sentence", syllable_count: 2 }
+            { text: 'This', syllable_count: 1 },
+            { text: 'is', syllable_count: 1 },
+            { text: 'a', syllable_count: 1 },
+            { text: 'test', syllable_count: 1 },
+            { text: 'sentence', syllable_count: 2 }
           ],
-          pause_indicators: ["."]
+          pause_indicators: ['.']
         }
       ]
     }
@@ -76,7 +76,7 @@ RSpec.describe ProsodicTextConverter::LLMConverter do
     # Mock client methods for new interface
     client_with_model = instance_double('RubyLLM::ClientWithModel')
     client_with_temp = instance_double('RubyLLM::ClientWithTemp')
-    
+
     allow(mock_client).to receive(:with_model).and_return(client_with_model)
     allow(client_with_model).to receive(:with_temperature).and_return(client_with_temp)
     allow(client_with_temp).to receive(:ask).and_return(expected_ssml)
@@ -95,7 +95,7 @@ RSpec.describe ProsodicTextConverter::LLMConverter do
     context 'with valid parameters' do
       it 'initializes successfully with default parameters' do
         converter = described_class.new(logger: mock_logger)
-        
+
         expect(converter.provider).to eq(:gemini)
         expect(converter.model).to eq('gemini-2.0-flash')
         expect(converter.logger).to eq(mock_logger)
@@ -108,45 +108,45 @@ RSpec.describe ProsodicTextConverter::LLMConverter do
           logger: mock_logger,
           temperature: 0.5
         )
-        
+
         expect(converter.provider).to eq(:openai)
         expect(converter.model).to eq('gpt-4')
       end
 
       it 'validates configuration during initialization' do
         expect(mock_ruby_llm).to receive(:chat).with(provider: :gemini)
-        
+
         described_class.new(logger: mock_logger)
       end
     end
 
     context 'with invalid parameters' do
       it 'raises error for invalid provider' do
-        expect {
+        expect do
           described_class.new(provider: nil, logger: mock_logger)
-        }.to raise_error(ArgumentError, /Provider must be a non-empty symbol/)
+        end.to raise_error(ArgumentError, /Provider must be a non-empty symbol/)
       end
 
       it 'raises error for invalid model' do
-        expect {
-          described_class.new(model: "", logger: mock_logger)
-        }.to raise_error(ArgumentError, /Model must be a non-empty string/)
+        expect do
+          described_class.new(model: '', logger: mock_logger)
+        end.to raise_error(ArgumentError, /Model must be a non-empty string/)
       end
 
       it 'raises error for empty provider symbol' do
-        expect {
+        expect do
           described_class.new(provider: :"", logger: mock_logger)
-        }.to raise_error(ArgumentError, /Provider must be a non-empty symbol/)
+        end.to raise_error(ArgumentError, /Provider must be a non-empty symbol/)
       end
     end
 
     context 'when LLM client initialization fails' do
       it 'raises error with context' do
-        allow(mock_ruby_llm).to receive(:chat).and_raise(StandardError, "API key invalid")
-        
-        expect {
+        allow(mock_ruby_llm).to receive(:chat).and_raise(StandardError, 'API key invalid')
+
+        expect do
           described_class.new(logger: mock_logger)
-        }.to raise_error(RuntimeError, /Failed to initialize LLM converter.*API key invalid/)
+        end.to raise_error(RuntimeError, /Failed to initialize LLM converter.*API key invalid/)
       end
     end
 
@@ -157,9 +157,9 @@ RSpec.describe ProsodicTextConverter::LLMConverter do
           raise Timeout::Error
         end
 
-        expect {
+        expect do
           described_class.new(logger: mock_logger)
-        }.to raise_error(RuntimeError, /Timeout initializing LLM client/)
+        end.to raise_error(RuntimeError, /Timeout initializing LLM client/)
       end
     end
   end
@@ -170,14 +170,14 @@ RSpec.describe ProsodicTextConverter::LLMConverter do
     context 'with valid inputs' do
       it 'successfully converts text using structured analysis' do
         result = converter.convert_text_with_analysis(text_analysis, mock_pattern)
-        
+
         expect(result).to eq(expected_ssml)
       end
 
       it 'calls LLM with proper prompts' do
         client_with_model = instance_double('RubyLLM::ClientWithModel')
         client_with_temp = instance_double('RubyLLM::ClientWithTemp')
-        
+
         expect(mock_client).to receive(:with_model).with('gemini-2.0-flash').and_return(client_with_model)
         expect(client_with_model).to receive(:with_temperature).with(0.3).and_return(client_with_temp)
         expect(client_with_temp).to receive(:ask).with(String).and_return(expected_ssml)
@@ -188,10 +188,10 @@ RSpec.describe ProsodicTextConverter::LLMConverter do
       it 'includes linguistic analysis in prompts' do
         client_with_model = instance_double('RubyLLM::ClientWithModel')
         client_with_temp = instance_double('RubyLLM::ClientWithTemp')
-        
+
         allow(mock_client).to receive(:with_model).and_return(client_with_model)
         allow(client_with_model).to receive(:with_temperature).and_return(client_with_temp)
-        
+
         expect(client_with_temp).to receive(:ask) do |prompt|
           expect(prompt).to include('LINGUISTIC ANALYSIS')
           expect(prompt).to include('Total sentences: 2')
@@ -212,36 +212,36 @@ RSpec.describe ProsodicTextConverter::LLMConverter do
 
     context 'with invalid inputs' do
       it 'raises error for invalid text analysis' do
-        expect {
+        expect do
           converter.convert_text_with_analysis({}, mock_pattern)
-        }.to raise_error(ArgumentError, /Text analysis must be a hash with :original_text key/)
+        end.to raise_error(ArgumentError, /Text analysis must be a hash with :original_text key/)
       end
 
       it 'raises error for missing sentences array' do
         invalid_analysis = text_analysis.dup
         invalid_analysis[:sentences] = []
-        
-        expect {
+
+        expect do
           converter.convert_text_with_analysis(invalid_analysis, mock_pattern)
-        }.to raise_error(ArgumentError, /Text analysis must contain non-empty sentences array/)
+        end.to raise_error(ArgumentError, /Text analysis must contain non-empty sentences array/)
       end
 
       it 'raises error for invalid pattern' do
         invalid_pattern = double
         allow(invalid_pattern).to receive(:respond_to?).and_return(false)
-        
-        expect {
+
+        expect do
           converter.convert_text_with_analysis(text_analysis, invalid_pattern)
-        }.to raise_error(ArgumentError, /Pattern must respond to segment_duration and pause_duration/)
+        end.to raise_error(ArgumentError, /Pattern must respond to segment_duration and pause_duration/)
       end
 
       it 'raises error for empty original text' do
         invalid_analysis = text_analysis.dup
-        invalid_analysis[:original_text] = ""
-        
-        expect {
+        invalid_analysis[:original_text] = ''
+
+        expect do
           converter.convert_text_with_analysis(invalid_analysis, mock_pattern)
-        }.to raise_error(ArgumentError, /Original text in analysis cannot be nil or empty/)
+        end.to raise_error(ArgumentError, /Original text in analysis cannot be nil or empty/)
       end
     end
 
@@ -249,19 +249,19 @@ RSpec.describe ProsodicTextConverter::LLMConverter do
       it 'retries on failure and eventually succeeds' do
         client_with_model = instance_double('RubyLLM::ClientWithModel')
         client_with_temp = instance_double('RubyLLM::ClientWithTemp')
-        
+
         allow(mock_client).to receive(:with_model).and_return(client_with_model)
         allow(client_with_model).to receive(:with_temperature).and_return(client_with_temp)
-        
+
         # First call fails, second succeeds
         expect(client_with_temp).to receive(:ask)
-          .and_raise(StandardError, "API error")
+          .and_raise(StandardError, 'API error')
           .ordered
         expect(client_with_temp).to receive(:ask)
           .and_return(expected_ssml)
           .ordered
 
-        expect(mock_logger).to receive(:warn).with(/LLM request attempt 1\/3 failed/)
+        expect(mock_logger).to receive(:warn).with(%r{LLM request attempt 1/3 failed})
 
         result = converter.convert_text_with_analysis(text_analysis, mock_pattern)
         expect(result).to eq(expected_ssml)
@@ -270,14 +270,14 @@ RSpec.describe ProsodicTextConverter::LLMConverter do
       it 'raises error after all retries fail' do
         client_with_model = instance_double('RubyLLM::ClientWithModel')
         client_with_temp = instance_double('RubyLLM::ClientWithTemp')
-        
+
         allow(mock_client).to receive(:with_model).and_return(client_with_model)
         allow(client_with_model).to receive(:with_temperature).and_return(client_with_temp)
-        allow(client_with_temp).to receive(:ask).and_raise(StandardError, "Persistent error")
+        allow(client_with_temp).to receive(:ask).and_raise(StandardError, 'Persistent error')
 
-        expect {
+        expect do
           converter.convert_text_with_analysis(text_analysis, mock_pattern)
-        }.to raise_error(RuntimeError, /All 3 LLM request attempts failed/)
+        end.to raise_error(RuntimeError, /All 3 LLM request attempts failed/)
       end
     end
 
@@ -285,7 +285,7 @@ RSpec.describe ProsodicTextConverter::LLMConverter do
       it 'raises timeout error' do
         client_with_model = instance_double('RubyLLM::ClientWithModel')
         client_with_temp = instance_double('RubyLLM::ClientWithTemp')
-        
+
         allow(mock_client).to receive(:with_model).and_return(client_with_model)
         allow(client_with_model).to receive(:with_temperature).and_return(client_with_temp)
         allow(client_with_temp).to receive(:ask) do
@@ -293,9 +293,9 @@ RSpec.describe ProsodicTextConverter::LLMConverter do
           raise Timeout::Error
         end
 
-        expect {
+        expect do
           converter.convert_text_with_analysis(text_analysis, mock_pattern)
-        }.to raise_error(RuntimeError, /LLM conversion timed out after 90 seconds/)
+        end.to raise_error(RuntimeError, /LLM conversion timed out after 90 seconds/)
       end
     end
   end
@@ -333,24 +333,24 @@ RSpec.describe ProsodicTextConverter::LLMConverter do
 
     context 'with invalid inputs' do
       it 'raises error for empty text' do
-        expect {
-          converter.convert_text("", mock_pattern, test_chunks)
-        }.to raise_error(ArgumentError, /Text cannot be nil or empty/)
+        expect do
+          converter.convert_text('', mock_pattern, test_chunks)
+        end.to raise_error(ArgumentError, /Text cannot be nil or empty/)
       end
 
       it 'raises error for empty chunks array' do
-        expect {
+        expect do
           converter.convert_text(test_text, mock_pattern, [])
-        }.to raise_error(ArgumentError, /Chunks must be a non-empty array/)
+        end.to raise_error(ArgumentError, /Chunks must be a non-empty array/)
       end
 
       it 'raises error for invalid pattern' do
         invalid_pattern = double
         allow(invalid_pattern).to receive(:respond_to?).and_return(false)
-        
-        expect {
+
+        expect do
           converter.convert_text(test_text, invalid_pattern, test_chunks)
-        }.to raise_error(ArgumentError, /Pattern must respond to segment_duration and pause_duration/)
+        end.to raise_error(ArgumentError, /Pattern must respond to segment_duration and pause_duration/)
       end
     end
   end
@@ -368,7 +368,7 @@ RSpec.describe ProsodicTextConverter::LLMConverter do
         mock_message = instance_double('RubyLLM::Message')
         allow(mock_message).to receive(:content).and_return(expected_ssml)
         allow(mock_message).to receive(:is_a?).with(RubyLLM::Message).and_return(true)
-        
+
         result = converter.send(:extract_response_content, mock_message)
         expect(result).to eq(expected_ssml)
       end
@@ -402,15 +402,15 @@ RSpec.describe ProsodicTextConverter::LLMConverter do
 
     context 'with invalid responses' do
       it 'raises error for empty content' do
-        expect {
-          converter.send(:extract_response_content, "")
-        }.to raise_error(RuntimeError, /No content found in LLM response/)
+        expect do
+          converter.send(:extract_response_content, '')
+        end.to raise_error(RuntimeError, /No content found in LLM response/)
       end
 
       it 'raises error for nil content' do
-        expect {
+        expect do
           converter.send(:extract_response_content, nil)
-        }.to raise_error(RuntimeError, /No content found in LLM response/)
+        end.to raise_error(RuntimeError, /No content found in LLM response/)
       end
     end
   end
@@ -420,46 +420,47 @@ RSpec.describe ProsodicTextConverter::LLMConverter do
 
     describe '#with_retries' do
       it 'succeeds on first attempt' do
-        result = converter.send(:with_retries, max_attempts: 3) { "success" }
-        expect(result).to eq("success")
+        result = converter.send(:with_retries, max_attempts: 3) { 'success' }
+        expect(result).to eq('success')
       end
 
       it 'retries and eventually succeeds' do
         attempt_count = 0
         result = converter.send(:with_retries, max_attempts: 3) do
           attempt_count += 1
-          raise StandardError, "Error" if attempt_count < 3
-          "success"
+          raise StandardError, 'Error' if attempt_count < 3
+
+          'success'
         end
-        
-        expect(result).to eq("success")
+
+        expect(result).to eq('success')
         expect(attempt_count).to eq(3)
       end
 
       it 'fails after max attempts' do
-        expect {
+        expect do
           converter.send(:with_retries, max_attempts: 2) do
-            raise StandardError, "Persistent error"
+            raise StandardError, 'Persistent error'
           end
-        }.to raise_error(RuntimeError, /All 2 LLM request attempts failed/)
+        end.to raise_error(RuntimeError, /All 2 LLM request attempts failed/)
       end
 
       it 'uses exponential backoff between retries' do
         times = []
-        expect {
+        expect do
           converter.send(:with_retries, max_attempts: 3) do
             times << Time.now
-            raise StandardError, "Error"
+            raise StandardError, 'Error'
           end
-        }.to raise_error(RuntimeError)
-        
+        end.to raise_error(RuntimeError)
+
         # Should have made 3 attempts
         expect(times.length).to eq(3)
-        
+
         # Check that there were delays between attempts (allowing for test timing variations)
         if times.length >= 2
           first_delay = times[1] - times[0]
-          expect(first_delay).to be >= 1.8  # Should be ~2 seconds with some tolerance
+          expect(first_delay).to be >= 1.8 # Should be ~2 seconds with some tolerance
         end
       end
     end
@@ -471,7 +472,7 @@ RSpec.describe ProsodicTextConverter::LLMConverter do
     describe '#build_system_prompt' do
       it 'returns comprehensive system prompt' do
         prompt = converter.send(:build_system_prompt)
-        
+
         expect(prompt).to include('speech synthesis')
         expect(prompt).to include('SSML')
         expect(prompt).to include('prosodic patterns')
@@ -481,7 +482,7 @@ RSpec.describe ProsodicTextConverter::LLMConverter do
     describe '#build_analysis_conversion_prompt' do
       it 'includes linguistic analysis details' do
         prompt = converter.send(:build_analysis_conversion_prompt, text_analysis, mock_pattern)
-        
+
         expect(prompt).to include('LINGUISTIC ANALYSIS')
         expect(prompt).to include('Total sentences: 2')
         expect(prompt).to include('syllables')
@@ -491,7 +492,7 @@ RSpec.describe ProsodicTextConverter::LLMConverter do
 
       it 'includes pattern specifications' do
         prompt = converter.send(:build_analysis_conversion_prompt, text_analysis, mock_pattern)
-        
+
         expect(prompt).to include('Segment duration: 1.0s')
         expect(prompt).to include('Pause duration: 350ms')
         expect(prompt).to include('Pitch variation: ±5%')
@@ -509,7 +510,7 @@ RSpec.describe ProsodicTextConverter::LLMConverter do
       it 'handles different speaking rates' do
         allow(mock_pattern).to receive(:rate).and_return('fast')
         allow(mock_pattern).to receive(:segment_duration).and_return(2.0)
-        
+
         # fast rate (180 wpm) * 2.0s segment = 6 words
         result = converter.send(:optimal_words_per_chunk, mock_pattern)
         expect(result).to eq(6)
@@ -523,7 +524,7 @@ RSpec.describe ProsodicTextConverter::LLMConverter do
     it 'logs detailed conversion information' do
       client_with_model = instance_double('RubyLLM::ClientWithModel')
       client_with_temp = instance_double('RubyLLM::ClientWithTemp')
-      
+
       allow(mock_client).to receive(:with_model).and_return(client_with_model)
       allow(client_with_model).to receive(:with_temperature).and_return(client_with_temp)
       allow(client_with_temp).to receive(:ask).and_return(expected_ssml)
@@ -539,16 +540,16 @@ RSpec.describe ProsodicTextConverter::LLMConverter do
     it 'logs errors with detailed context' do
       client_with_model = instance_double('RubyLLM::ClientWithModel')
       client_with_temp = instance_double('RubyLLM::ClientWithTemp')
-      
+
       allow(mock_client).to receive(:with_model).and_return(client_with_model)
       allow(client_with_model).to receive(:with_temperature).and_return(client_with_temp)
-      allow(client_with_temp).to receive(:ask).and_raise(StandardError, "API error")
+      allow(client_with_temp).to receive(:ask).and_raise(StandardError, 'API error')
 
       expect(mock_logger).to receive(:error).with(/All 3 LLM request attempts failed/)
 
-      expect {
+      expect do
         converter.convert_text_with_analysis(text_analysis, mock_pattern)
-      }.to raise_error(RuntimeError)
+      end.to raise_error(RuntimeError)
     end
   end
 end

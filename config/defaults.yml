@@ -1,0 +1,29 @@
+# Default configuration for Prosodic Text Converter
+# Values can be overridden by environment variables (prefixed with PTC_) or CLI arguments
+
+# LLM Configuration
+provider: "gemini"
+model: "gemini-2.0-flash"
+llm_timeout: 30
+
+# Audio Analysis Configuration  
+pitch_backend: "aubio"
+analysis_timeout: 60
+spectrogram_dir: "./spectrograms"
+
+# Prosodic Pattern Configuration
+default_pattern: "deliberate"
+
+# Output Configuration
+output_format: "ssml"
+verbose: false
+
+# ElevenLabs Configuration (optional)
+elevenlabs_model: "eleven_monolingual_v1"
+elevenlabs_voice: null
+
+# Processing Configuration
+analyze_only: false
+health_check: false
+list_backends: false
+list_voices: false

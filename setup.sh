@@ -169,7 +169,7 @@ if [ -f "prosodic_converter.rb" ]; then
 fi
 
 # Test basic functionality (if API key is available)
-if [ -n "$OPENAI_API_KEY" ] || [ -n "$ANTHROPIC_API_KEY" ]; then
+if [ -n "$OPENAI_API_KEY" ] || [ -n "$ANTHROPIC_API_KEY" ] || [ -n "$GEMINI_API_KEY" ]; then
     echo "🔑 API key found - testing basic conversion..."
     if echo "Hello world" | ruby prosodic_converter.rb &> /dev/null; then
         echo "✅ Basic text conversion working"
@@ -178,7 +178,7 @@ if [ -n "$OPENAI_API_KEY" ] || [ -n "$ANTHROPIC_API_KEY" ]; then
     fi
 else
     echo "ℹ️  No API key found - skipping live conversion test"
-    echo "   Set OPENAI_API_KEY or ANTHROPIC_API_KEY to enable LLM features"
+    echo "   Copy .env.example to .env and add your API keys to enable LLM features"
 fi
 
 # --- Configuration Suggestions ---
@@ -195,10 +195,9 @@ if [[ "$SONIC_AVAILABLE" == true ]]; then
 fi
 echo ""
 echo "Next steps:"
-echo "1. Set your LLM API key:"
-echo "   export OPENAI_API_KEY='your-key-here'"
-echo "   # OR"
-echo "   export ANTHROPIC_API_KEY='your-key-here'"
+echo "1. Configure your LLM API keys:"
+echo "   cp .env.example .env"
+echo "   # Edit .env and add your actual API keys"
 echo ""
 echo "2. Test basic conversion:"
 echo "   echo 'Hello, world!' | ./prosodic_converter.rb"

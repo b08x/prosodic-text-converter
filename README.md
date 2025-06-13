@@ -33,6 +33,10 @@ cd prosodic-text-converter
 
 # Install Ruby gems
 bundle install
+
+# Configure API keys
+cp .env.example .env
+# Edit .env and add your actual API keys
 ```
 
 ### Basic Usage
@@ -102,19 +106,21 @@ done
 
 ### LLM Provider Configuration
 
-Support for multiple AI providers via environment variables:
+Support for multiple AI providers via environment variables configured in your `.env` file:
 
 ```bash
+# Add API keys to your .env file (copy from .env.example)
+# OPENAI_API_KEY=your-key-here
+# ANTHROPIC_API_KEY=your-key-here  
+# GEMINI_API_KEY=your-key-here
+
 # OpenAI (GPT models)
-export OPENAI_API_KEY="your-key-here"
 ./bin/prosodic-text-converter --provider=openai --model=gpt-4 input.txt
 
 # Anthropic (Claude models)
-export ANTHROPIC_API_KEY="your-key-here"
 ./bin/prosodic-text-converter --provider=anthropic --model=claude-3-sonnet input.txt
 
 # Google Gemini
-export GEMINI_API_KEY="your-key-here"
 ./bin/prosodic-text-converter --provider=gemini --model=gemini-2.0-flash input.txt
 ```
 
@@ -289,14 +295,17 @@ bundle exec rubocop -a
 
 ### Environment Variables
 
+Configure your API keys in the `.env` file (copy from `.env.example`):
+
 ```bash
 # LLM API Keys (at least one required)
-export OPENAI_API_KEY="sk-..."
-export ANTHROPIC_API_KEY="sk-ant-..."
-export GEMINI_API_KEY="..."
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
+GEMINI_API_KEY=...
+ELEVENLABS_API_KEY=...
 
 # Optional: Default backend selection
-export PROSODIC_PITCH_BACKEND="aubio"  # or "sonic_annotator"
+PROSODIC_PITCH_BACKEND=aubio  # or "sonic_annotator"
 ```
 
 ### Audio Format Support

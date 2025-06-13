@@ -3,10 +3,10 @@
 require 'spec_helper'
 
 RSpec.describe ProsodicTextConverter::Converter do
-  let(:test_text) { "Hello world. This is a test." }
-  let(:test_audio_file) { "/path/to/test_audio.wav" }
-  let(:test_output_dir) { "./test_spectrograms" }
-  
+  let(:test_text) { 'Hello world. This is a test.' }
+  let(:test_audio_file) { '/path/to/test_audio.wav' }
+  let(:test_output_dir) { './test_spectrograms' }
+
   # Mock dependencies
   let(:mock_text_analyzer) { instance_double(ProsodicTextConverter::TextAnalyzer) }
   let(:mock_llm_converter) { instance_double(ProsodicTextConverter::LLMConverter) }
@@ -20,21 +20,23 @@ RSpec.describe ProsodicTextConverter::Converter do
   let(:text_analysis) do
     {
       sentence_count: 2,
-      sentences: ["Hello world.", "This is a test."],
+      sentences: ['Hello world.', 'This is a test.'],
       tokens: %w[Hello world This is a test],
-      pause_indicators: ["."]
+      pause_indicators: ['.']
     }
   end
 
-  let(:ssml_output) { "<speak><prosody rate=\"medium\">Hello world.</prosody><break time=\"350ms\"/><prosody rate=\"medium\">This is a test.</prosody></speak>" }
+  let(:ssml_output) do
+    '<speak><prosody rate="medium">Hello world.</prosody><break time="350ms"/><prosody rate="medium">This is a test.</prosody></speak>'
+  end
   let(:validated_ssml) { ssml_output }
   let(:timing_info) { { total_duration: 3.5, break_count: 1, segment_count: 2 } }
 
   let(:spectrogram_result) do
     {
-      spectrogram_file: "/path/to/spectrogram.png",
+      spectrogram_file: '/path/to/spectrogram.png',
       audio_duration: 2.5,
-      status: "success"
+      status: 'success'
     }
   end
 
@@ -57,16 +59,16 @@ RSpec.describe ProsodicTextConverter::Converter do
     # Mock pattern methods
     allow(mock_pattern).to receive(:name).and_return('extracted')
     allow(mock_pattern).to receive(:to_h).and_return({
-      name: 'extracted',
-      segment_duration: 1.0,
-      pause_duration: 0.3,
-      pitch_variation: 5,
-      rate: 'medium'
-    })
+                                                       name: 'extracted',
+                                                       segment_duration: 1.0,
+                                                       pause_duration: 0.3,
+                                                       pitch_variation: 5,
+                                                       rate: 'medium'
+                                                     })
 
     # Mock factory method
     allow(ProsodicTextConverter::PitchAnalyzerFactory).to receive(:available_backends)
-      .and_return([:aubio, :sonic_annotator])
+      .and_return(%i[aubio sonic_annotator])
 
     # Mock component initialization
     allow(ProsodicTextConverter::TextAnalyzer).to receive(:new).and_return(mock_text_analyzer)
@@ -88,7 +90,7 @@ RSpec.describe ProsodicTextConverter::Converter do
     context 'with valid parameters' do
       it 'initializes successfully with default parameters' do
         converter = described_class.new(logger: mock_logger)
-        
+
         expect(converter.logger).to eq(mock_logger)
         expect(converter.pitch_backend).to eq(:aubio)
       end
@@ -100,17 +102,17 @@ RSpec.describe ProsodicTextConverter::Converter do
           pitch_backend: :sonic_annotator,
           logger: mock_logger
         )
-        
+
         expect(converter.pitch_backend).to eq(:sonic_annotator)
       end
 
       it 'validates pitch backend availability' do
         expect(ProsodicTextConverter::PitchAnalyzerFactory).to receive(:available_backends)
           .and_return([:aubio])
-        
-        expect {
+
+        expect do
           described_class.new(pitch_backend: :invalid_backend, logger: mock_logger)
-        }.to raise_error(RuntimeError, /Pitch backend 'invalid_backend' not available/)
+        end.to raise_error(RuntimeError, /Pitch backend 'invalid_backend' not available/)
       end
     end
 
@@ -118,21 +120,21 @@ RSpec.describe ProsodicTextConverter::Converter do
       it 'raises error when no backends are available' do
         allow(ProsodicTextConverter::PitchAnalyzerFactory).to receive(:available_backends)
           .and_return([])
-        
-        expect {
+
+        expect do
           described_class.new(logger: mock_logger)
-        }.to raise_error(RuntimeError, /No pitch analysis backends available/)
+        end.to raise_error(RuntimeError, /No pitch analysis backends available/)
       end
     end
 
     context 'when component initialization fails' do
       it 'raises error with informative message' do
         allow(ProsodicTextConverter::TextAnalyzer).to receive(:new)
-          .and_raise(StandardError, "Text analyzer failed")
-        
-        expect {
+          .and_raise(StandardError, 'Text analyzer failed')
+
+        expect do
           described_class.new(logger: mock_logger)
-        }.to raise_error(RuntimeError, /Converter initialization failed.*Text analyzer failed/)
+        end.to raise_error(RuntimeError, /Converter initialization failed.*Text analyzer failed/)
       end
     end
   end
@@ -180,11 +182,11 @@ RSpec.describe ProsodicTextConverter::Converter do
       end
 
       it 'raises error for empty text' do
-        expect { converter.convert("   ") }.to raise_error(ArgumentError, /Text input cannot be nil or empty/)
+        expect { converter.convert('   ') }.to raise_error(ArgumentError, /Text input cannot be nil or empty/)
       end
 
       it 'raises error for text that is too long' do
-        long_text = "a" * 50001
+        long_text = 'a' * 50_001
         expect { converter.convert(long_text) }.to raise_error(ArgumentError, /Text input too long/)
       end
     end
@@ -193,7 +195,7 @@ RSpec.describe ProsodicTextConverter::Converter do
       it 'raises timeout error' do
         allow(mock_text_analyzer).to receive(:analyze) do
           sleep(0.1)
-          raise Timeout::Error, "Analysis timeout"
+          raise Timeout::Error, 'Analysis timeout'
         end
 
         expect { converter.convert(test_text) }.to raise_error(RuntimeError, /Text conversion timed out/)
@@ -203,9 +205,11 @@ RSpec.describe ProsodicTextConverter::Converter do
     context 'when LLM conversion fails' do
       it 'raises error with context' do
         allow(mock_llm_converter).to receive(:convert_text_with_analysis)
-          .and_raise(StandardError, "LLM service unavailable")
+          .and_raise(StandardError, 'LLM service unavailable')
 
-        expect { converter.convert(test_text) }.to raise_error(RuntimeError, /Text conversion failed.*LLM service unavailable/)
+        expect do
+          converter.convert(test_text)
+        end.to raise_error(RuntimeError, /Text conversion failed.*LLM service unavailable/)
       end
     end
   end
@@ -236,7 +240,7 @@ RSpec.describe ProsodicTextConverter::Converter do
 
       it 'updates internal pattern from analysis' do
         converter.extract_pattern_from_audio(test_audio_file)
-        
+
         expect(converter.pattern).to eq(mock_pattern)
       end
 
@@ -250,19 +254,19 @@ RSpec.describe ProsodicTextConverter::Converter do
 
     context 'with invalid audio file' do
       it 'raises error for non-existent file' do
-        allow(File).to receive(:exist?).with("/nonexistent.wav").and_return(false)
-        
-        expect {
-          converter.extract_pattern_from_audio("/nonexistent.wav")
-        }.to raise_error(ArgumentError, /Audio file not found/)
+        allow(File).to receive(:exist?).with('/nonexistent.wav').and_return(false)
+
+        expect do
+          converter.extract_pattern_from_audio('/nonexistent.wav')
+        end.to raise_error(ArgumentError, /Audio file not found/)
       end
 
       it 'raises error for unreadable file' do
         allow(File).to receive(:readable?).with(test_audio_file).and_return(false)
-        
-        expect {
+
+        expect do
           converter.extract_pattern_from_audio(test_audio_file)
-        }.to raise_error(ArgumentError, /Audio file not readable/)
+        end.to raise_error(ArgumentError, /Audio file not readable/)
       end
     end
 
@@ -270,23 +274,23 @@ RSpec.describe ProsodicTextConverter::Converter do
       it 'raises timeout error' do
         allow(mock_spectrogram_generator).to receive(:generate) do
           sleep(0.1)
-          raise Timeout::Error, "Generation timeout"
+          raise Timeout::Error, 'Generation timeout'
         end
 
-        expect {
+        expect do
           converter.extract_pattern_from_audio(test_audio_file)
-        }.to raise_error(RuntimeError, /Audio analysis timed out/)
+        end.to raise_error(RuntimeError, /Audio analysis timed out/)
       end
     end
 
     context 'when analysis fails' do
       it 'raises error with context' do
         allow(mock_spectrogram_analyzer).to receive(:analyze)
-          .and_raise(StandardError, "Analysis failed")
+          .and_raise(StandardError, 'Analysis failed')
 
-        expect {
+        expect do
           converter.extract_pattern_from_audio(test_audio_file)
-        }.to raise_error(RuntimeError, /Audio analysis failed.*Analysis failed/)
+        end.to raise_error(RuntimeError, /Audio analysis failed.*Analysis failed/)
       end
     end
   end
@@ -298,7 +302,7 @@ RSpec.describe ProsodicTextConverter::Converter do
       # Mock audio analysis components
       allow(mock_spectrogram_generator).to receive(:generate).and_return(spectrogram_result)
       allow(mock_spectrogram_analyzer).to receive(:analyze).and_return(analysis_result)
-      
+
       # Mock text conversion components
       allow(mock_text_analyzer).to receive(:analyze).and_return(text_analysis)
       allow(mock_llm_converter).to receive(:convert_text_with_analysis).and_return(ssml_output)
@@ -331,14 +335,14 @@ RSpec.describe ProsodicTextConverter::Converter do
 
     context 'with invalid inputs' do
       it 'validates both text and audio inputs' do
-        expect {
-          converter.convert_with_audio_analysis("", test_audio_file)
-        }.to raise_error(ArgumentError, /Text input cannot be nil or empty/)
+        expect do
+          converter.convert_with_audio_analysis('', test_audio_file)
+        end.to raise_error(ArgumentError, /Text input cannot be nil or empty/)
 
-        allow(File).to receive(:exist?).with("/bad.wav").and_return(false)
-        expect {
-          converter.convert_with_audio_analysis(test_text, "/bad.wav")
-        }.to raise_error(ArgumentError, /Audio file not found/)
+        allow(File).to receive(:exist?).with('/bad.wav').and_return(false)
+        expect do
+          converter.convert_with_audio_analysis(test_text, '/bad.wav')
+        end.to raise_error(ArgumentError, /Audio file not found/)
       end
     end
   end
@@ -346,10 +350,10 @@ RSpec.describe ProsodicTextConverter::Converter do
   describe '.available_pitch_backends' do
     it 'delegates to PitchAnalyzerFactory' do
       expect(ProsodicTextConverter::PitchAnalyzerFactory).to receive(:available_backends)
-        .and_return([:aubio, :sonic_annotator])
+        .and_return(%i[aubio sonic_annotator])
 
       result = described_class.available_pitch_backends
-      expect(result).to eq([:aubio, :sonic_annotator])
+      expect(result).to eq(%i[aubio sonic_annotator])
     end
   end
 
@@ -379,19 +383,19 @@ RSpec.describe ProsodicTextConverter::Converter do
 
       it 'raises error if directory cannot be created' do
         allow(Dir).to receive(:exist?).and_return(false)
-        allow(FileUtils).to receive(:mkdir_p).and_raise(StandardError, "Permission denied")
+        allow(FileUtils).to receive(:mkdir_p).and_raise(StandardError, 'Permission denied')
 
-        expect {
+        expect do
           converter.send(:validate_output_directory, test_output_dir)
-        }.to raise_error(ArgumentError, /Cannot create output directory/)
+        end.to raise_error(ArgumentError, /Cannot create output directory/)
       end
 
       it 'raises error if directory is not writable' do
         allow(File).to receive(:writable?).with(test_output_dir).and_return(false)
 
-        expect {
+        expect do
           converter.send(:validate_output_directory, test_output_dir)
-        }.to raise_error(ArgumentError, /Output directory not writable/)
+        end.to raise_error(ArgumentError, /Output directory not writable/)
       end
     end
   end
@@ -413,7 +417,7 @@ RSpec.describe ProsodicTextConverter::Converter do
 
     it 'logs errors with backtraces for debugging' do
       allow(mock_text_analyzer).to receive(:analyze)
-        .and_raise(StandardError, "Test error")
+        .and_raise(StandardError, 'Test error')
 
       expect(mock_logger).to receive(:error).with(/Text conversion failed/)
       expect(mock_logger).to receive(:debug).with(/Backtrace:/)

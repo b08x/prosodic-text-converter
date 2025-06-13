@@ -3,7 +3,7 @@
 require 'spec_helper'
 
 RSpec.describe ProsodicTextConverter::PitchAnalyzer do
-  let(:test_audio_file) { "/path/to/test_audio.wav" }
+  let(:test_audio_file) { '/path/to/test_audio.wav' }
   let(:mock_logger) { instance_double(Logger) }
 
   before do
@@ -11,7 +11,7 @@ RSpec.describe ProsodicTextConverter::PitchAnalyzer do
     allow(mock_logger).to receive(:debug)
     allow(mock_logger).to receive(:error)
     allow(mock_logger).to receive(:warn)
-    
+
     # Mock file system
     allow(File).to receive(:exist?).with(test_audio_file).and_return(true)
     allow(File).to receive(:readable?).with(test_audio_file).and_return(true)
@@ -39,20 +39,20 @@ RSpec.describe ProsodicTextConverter::PitchAnalyzer do
       end
 
       it 'raises error for empty path' do
-        expect { analyzer.send(:validate_audio_file, "   ") }
+        expect { analyzer.send(:validate_audio_file, '   ') }
           .to raise_error(ArgumentError, /Audio file path cannot be nil or empty/)
       end
 
       it 'raises error for non-existent file' do
-        allow(File).to receive(:exist?).with("/nonexistent.wav").and_return(false)
-        
-        expect { analyzer.send(:validate_audio_file, "/nonexistent.wav") }
+        allow(File).to receive(:exist?).with('/nonexistent.wav').and_return(false)
+
+        expect { analyzer.send(:validate_audio_file, '/nonexistent.wav') }
           .to raise_error(ArgumentError, /Audio file not found/)
       end
 
       it 'raises error for unreadable file' do
         allow(File).to receive(:readable?).with(test_audio_file).and_return(false)
-        
+
         expect { analyzer.send(:validate_audio_file, test_audio_file) }
           .to raise_error(ArgumentError, /Audio file not readable/)
       end
@@ -72,7 +72,7 @@ RSpec.describe ProsodicTextConverter::PitchAnalyzer do
         ]
 
         result = analyzer.calculate_pitch_variation(pitch_data)
-        
+
         expect(result).to be_a(Float)
         expect(result).to be_between(1.0, 15.0)
       end
@@ -94,7 +94,7 @@ RSpec.describe ProsodicTextConverter::PitchAnalyzer do
           { timestamp: 0.0, frequency: 100.0 },
           { timestamp: 0.1, frequency: 100.1 }
         ]
-        
+
         result = analyzer.calculate_pitch_variation(low_variation_data)
         expect(result).to be >= 1.0
 
@@ -122,10 +122,10 @@ RSpec.describe ProsodicTextConverter::PitchAnalyzer do
           { timestamp: 0.0, frequency: 100.0 },
           { timestamp: 0.1, frequency: 110.0 }
         ]
-        
+
         # Stub one of the internal calculations to raise an error
-        allow(pitch_data).to receive(:map).and_raise(StandardError, "Calculation error")
-        
+        allow(pitch_data).to receive(:map).and_raise(StandardError, 'Calculation error')
+
         result = analyzer.calculate_pitch_variation(pitch_data)
         expect(result).to eq(5.0)
       end
@@ -134,7 +134,7 @@ RSpec.describe ProsodicTextConverter::PitchAnalyzer do
 end
 
 RSpec.describe ProsodicTextConverter::AubioPitchAnalyzer do
-  let(:test_audio_file) { "/path/to/test_audio.wav" }
+  let(:test_audio_file) { '/path/to/test_audio.wav' }
   let(:mock_logger) { instance_double(Logger) }
   let(:mock_aubio_source) { instance_double('Aubio::Source') }
   let(:mock_aubio_pitch) { instance_double('Aubio::Pitch') }
@@ -144,11 +144,11 @@ RSpec.describe ProsodicTextConverter::AubioPitchAnalyzer do
     allow(mock_logger).to receive(:debug)
     allow(mock_logger).to receive(:error)
     allow(mock_logger).to receive(:warn)
-    
+
     # Mock file system
     allow(File).to receive(:exist?).with(test_audio_file).and_return(true)
     allow(File).to receive(:readable?).with(test_audio_file).and_return(true)
-    
+
     # Mock Aubio FFI calls (without requiring the actual gem)
     stub_const('Aubio::Source', Class.new)
     stub_const('Aubio::Pitch', Class.new)
@@ -159,7 +159,7 @@ RSpec.describe ProsodicTextConverter::AubioPitchAnalyzer do
   describe '#initialize' do
     it 'initializes with default parameters' do
       analyzer = described_class.new(logger: mock_logger)
-      
+
       expect(analyzer.algorithm).to eq('yin')
       expect(analyzer.hop_size).to eq(512)
       expect(analyzer.buffer_size).to eq(1024)
@@ -174,7 +174,7 @@ RSpec.describe ProsodicTextConverter::AubioPitchAnalyzer do
         sample_rate: 22_050,
         logger: mock_logger
       )
-      
+
       expect(analyzer.algorithm).to eq('mcomb')
       expect(analyzer.hop_size).to eq(256)
       expect(analyzer.buffer_size).to eq(2048)
@@ -184,7 +184,7 @@ RSpec.describe ProsodicTextConverter::AubioPitchAnalyzer do
 
   describe '#analyze' do
     let(:analyzer) { described_class.new(logger: mock_logger) }
-    
+
     let(:sample_audio_data) do
       # Mock some sample frames
       [
@@ -194,14 +194,14 @@ RSpec.describe ProsodicTextConverter::AubioPitchAnalyzer do
       ]
     end
 
-    let(:pitch_frequencies) { [150.0, 160.0] }  # Corresponding pitch values
+    let(:pitch_frequencies) { [150.0, 160.0] } # Corresponding pitch values
 
     before do
       # Mock Aubio processing workflow
       allow(mock_aubio_source).to receive(:do_multi).and_return(true, true, false)
       allow(mock_aubio_source).to receive(:get_next_samples)
         .and_return(*sample_audio_data)
-      
+
       allow(mock_aubio_pitch).to receive(:do)
         .and_return(*pitch_frequencies)
     end
@@ -209,15 +209,15 @@ RSpec.describe ProsodicTextConverter::AubioPitchAnalyzer do
     context 'with valid audio file' do
       it 'successfully analyzes audio and returns pitch data' do
         result = analyzer.analyze(test_audio_file)
-        
+
         expect(result).to be_an(Array)
         expect(result.length).to eq(2)
-        
+
         expect(result.first).to include(
           timestamp: be_a(Float),
           frequency: 150.0
         )
-        
+
         expect(result.last).to include(
           timestamp: be_a(Float),
           frequency: 160.0
@@ -227,24 +227,24 @@ RSpec.describe ProsodicTextConverter::AubioPitchAnalyzer do
       it 'filters out frequencies outside speech range' do
         # Mock frequencies outside the 50-800 Hz range
         allow(mock_aubio_pitch).to receive(:do)
-          .and_return(30.0, 900.0, 200.0)  # Only 200.0 should be kept
-        
+          .and_return(30.0, 900.0, 200.0) # Only 200.0 should be kept
+
         allow(mock_aubio_source).to receive(:do_multi).and_return(true, true, true, false)
         allow(mock_aubio_source).to receive(:get_next_samples)
           .and_return([0.1], [0.2], [0.3], [])
 
         result = analyzer.analyze(test_audio_file)
-        
+
         expect(result.length).to eq(1)
         expect(result.first[:frequency]).to eq(200.0)
       end
 
       it 'calculates timestamps correctly based on frame position' do
         result = analyzer.analyze(test_audio_file)
-        
+
         # First frame at timestamp 0
         expect(result.first[:timestamp]).to eq(0.0)
-        
+
         # Second frame at timestamp = hop_size / sample_rate
         expected_second_timestamp = 512.0 / 44_100.0
         expect(result.last[:timestamp]).to be_within(0.001).of(expected_second_timestamp)
@@ -263,9 +263,9 @@ RSpec.describe ProsodicTextConverter::AubioPitchAnalyzer do
       it 'logs warning and returns empty array' do
         # Mock all frequencies outside valid range
         allow(mock_aubio_pitch).to receive(:do).and_return(30.0, 900.0)
-        
+
         expect(mock_logger).to receive(:warn).with('No valid pitch data extracted from audio')
-        
+
         result = analyzer.analyze(test_audio_file)
         expect(result).to be_empty
       end
@@ -273,8 +273,8 @@ RSpec.describe ProsodicTextConverter::AubioPitchAnalyzer do
 
     context 'when FFI calls fail' do
       it 'raises error with context' do
-        allow(Aubio::Source).to receive(:new).and_raise(StandardError, "FFI error")
-        
+        allow(Aubio::Source).to receive(:new).and_raise(StandardError, 'FFI error')
+
         expect { analyzer.analyze(test_audio_file) }
           .to raise_error(RuntimeError, /FFI Aubio analysis failed.*FFI error/)
       end
@@ -282,9 +282,9 @@ RSpec.describe ProsodicTextConverter::AubioPitchAnalyzer do
 
     context 'with invalid audio file' do
       it 'validates file before processing' do
-        allow(File).to receive(:exist?).with("/nonexistent.wav").and_return(false)
-        
-        expect { analyzer.analyze("/nonexistent.wav") }
+        allow(File).to receive(:exist?).with('/nonexistent.wav').and_return(false)
+
+        expect { analyzer.analyze('/nonexistent.wav') }
           .to raise_error(ArgumentError, /Audio file not found/)
       end
     end
@@ -292,8 +292,8 @@ RSpec.describe ProsodicTextConverter::AubioPitchAnalyzer do
 end
 
 RSpec.describe ProsodicTextConverter::SonicAnnotatorPitchAnalyzer do
-  let(:test_audio_file) { "/path/to/test_audio.wav" }
-  let(:transform_dir) { "/path/to/transforms" }
+  let(:test_audio_file) { '/path/to/test_audio.wav' }
+  let(:transform_dir) { '/path/to/transforms' }
   let(:mock_logger) { instance_double(Logger) }
 
   before do
@@ -301,24 +301,25 @@ RSpec.describe ProsodicTextConverter::SonicAnnotatorPitchAnalyzer do
     allow(mock_logger).to receive(:debug)
     allow(mock_logger).to receive(:error)
     allow(mock_logger).to receive(:warn)
-    
+
     # Mock file system operations
     allow(File).to receive(:exist?).with(test_audio_file).and_return(true)
     allow(File).to receive(:readable?).with(test_audio_file).and_return(true)
     allow(FileUtils).to receive(:mkdir_p)
     allow(File).to receive(:write)
-    
+
     # Mock sonic-annotator availability
     allow(Open3).to receive(:capture3).with('which', 'sonic-annotator')
-      .and_return(["", "", double(success?: true)])
+                                      .and_return(['', '', double(success?: true)])
     allow(Open3).to receive(:capture3).with('sonic-annotator', '-l')
-      .and_return(["pyin:pyin\nvamp-example-plugins:fixedtempo", "", double(success?: true)])
+                                      .and_return(["pyin:pyin\nvamp-example-plugins:fixedtempo", '',
+                                                   double(success?: true)])
   end
 
   describe '#initialize' do
     it 'initializes with default parameters' do
       analyzer = described_class.new(logger: mock_logger)
-      
+
       expect(analyzer.plugin).to eq('pyin:pyin:f0candidates')
       expect(analyzer.step_size).to eq(256)
       expect(analyzer.block_size).to eq(2048)
@@ -326,7 +327,7 @@ RSpec.describe ProsodicTextConverter::SonicAnnotatorPitchAnalyzer do
 
     it 'creates transform directory and files' do
       expect(FileUtils).to receive(:mkdir_p).with(anything)
-      expect(File).to receive(:write).at_least(4).times  # 4 transform files
+      expect(File).to receive(:write).at_least(4).times # 4 transform files
 
       described_class.new(logger: mock_logger)
     end
@@ -341,7 +342,7 @@ RSpec.describe ProsodicTextConverter::SonicAnnotatorPitchAnalyzer do
     context 'when sonic-annotator is not available' do
       it 'raises error' do
         allow(Open3).to receive(:capture3).with('which', 'sonic-annotator')
-          .and_return(["", "not found", double(success?: false)])
+                                          .and_return(['', 'not found', double(success?: false)])
 
         expect { described_class.new(logger: mock_logger) }
           .to raise_error(RuntimeError, /Sonic Annotator not found/)
@@ -351,7 +352,7 @@ RSpec.describe ProsodicTextConverter::SonicAnnotatorPitchAnalyzer do
     context 'when required plugins are missing' do
       it 'logs warning but continues' do
         allow(Open3).to receive(:capture3).with('sonic-annotator', '-l')
-          .and_return(["other-plugin", "", double(success?: true)])
+                                          .and_return(['other-plugin', '', double(success?: true)])
 
         expect(mock_logger).to receive(:warn).with(/Missing Vamp plugins/)
 
@@ -362,15 +363,15 @@ RSpec.describe ProsodicTextConverter::SonicAnnotatorPitchAnalyzer do
 
   describe '#analyze' do
     let(:analyzer) { described_class.new(logger: mock_logger) }
-    
+
     let(:rdf_pitch_output) do
       <<~RDF
         @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
         @prefix event: <http://example.org/event/> .
-        
+
         event:1 <http://example.org/time> "0.0"^^xsd:float ;
                 <http://example.org/value> "150.0"^^xsd:float .
-        
+
         event:2 <http://example.org/time> "0.1"^^xsd:float ;
                 <http://example.org/value> "160.0"^^xsd:float .
       RDF
@@ -380,7 +381,7 @@ RSpec.describe ProsodicTextConverter::SonicAnnotatorPitchAnalyzer do
       <<~RDF
         @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
         @prefix event: <http://example.org/event/> .
-        
+
         event:1 <http://example.org/time> "0.0"^^xsd:float ;
                 <http://example.org/value> "120.0"^^xsd:float .
       RDF
@@ -390,21 +391,21 @@ RSpec.describe ProsodicTextConverter::SonicAnnotatorPitchAnalyzer do
       # Mock RDF parsing
       stub_const('RDF::Graph', Class.new)
       stub_const('RDF::Turtle::Reader', Class.new)
-      
+
       mock_graph = instance_double('RDF::Graph')
       allow(RDF::Graph).to receive(:new).and_return(mock_graph)
       allow(RDF::Turtle::Reader).to receive(:new).and_yield(double)
       allow(mock_graph).to receive(:<<)
-      
+
       # Mock successful RDF parsing results
       allow(analyzer).to receive(:parse_rdf_output).and_return([
-        { timestamp: 0.0, frequency: 150.0, confidence: 1.0 },
-        { timestamp: 0.1, frequency: 160.0, confidence: 1.0 }
-      ])
-      
+                                                                 { timestamp: 0.0, frequency: 150.0, confidence: 1.0 },
+                                                                 { timestamp: 0.1, frequency: 160.0, confidence: 1.0 }
+                                                               ])
+
       allow(analyzer).to receive(:parse_tempo_rdf_output).and_return([
-        { timestamp: 0.0, tempo: 120.0 }
-      ])
+                                                                       { timestamp: 0.0, tempo: 120.0 }
+                                                                     ])
     end
 
     context 'with successful analysis' do
@@ -412,15 +413,15 @@ RSpec.describe ProsodicTextConverter::SonicAnnotatorPitchAnalyzer do
         # Mock successful sonic-annotator calls
         allow(Open3).to receive(:capture3).with(
           'sonic-annotator', '-q', '-t', anything, test_audio_file, '-w', 'rdf'
-        ).and_return([rdf_pitch_output, "", double(success?: true)])
+        ).and_return([rdf_pitch_output, '', double(success?: true)])
       end
 
       it 'successfully analyzes audio with RDF output' do
         result = analyzer.analyze(test_audio_file)
-        
+
         expect(result).to be_an(Array)
         expect(result.length).to eq(2)
-        
+
         expect(result.first).to include(
           timestamp: 0.0,
           frequency: 150.0,
@@ -430,7 +431,7 @@ RSpec.describe ProsodicTextConverter::SonicAnnotatorPitchAnalyzer do
 
       it 'includes tempo context when available' do
         result = analyzer.analyze(test_audio_file)
-        
+
         # Should have tempo context added by combine_analysis_results
         expect(result.first).to have_key(:tempo_context)
       end
@@ -447,7 +448,7 @@ RSpec.describe ProsodicTextConverter::SonicAnnotatorPitchAnalyzer do
       it 'raises error with sonic-annotator error message' do
         allow(Open3).to receive(:capture3).with(
           'sonic-annotator', '-q', '-t', anything, test_audio_file, '-w', 'rdf'
-        ).and_return(["", "Analysis failed", double(success?: false)])
+        ).and_return(['', 'Analysis failed', double(success?: false)])
 
         expect { analyzer.analyze(test_audio_file) }
           .to raise_error(RuntimeError, /Sonic Annotator analysis failed/)
@@ -459,16 +460,16 @@ RSpec.describe ProsodicTextConverter::SonicAnnotatorPitchAnalyzer do
         # Pitch succeeds, tempo fails
         allow(Open3).to receive(:capture3).with(
           'sonic-annotator', '-q', '-t', /pyin/, test_audio_file, '-w', 'rdf'
-        ).and_return([rdf_pitch_output, "", double(success?: true)])
-        
+        ).and_return([rdf_pitch_output, '', double(success?: true)])
+
         allow(Open3).to receive(:capture3).with(
           'sonic-annotator', '-q', '-t', /tempo/, test_audio_file, '-w', 'rdf'
-        ).and_return(["", "Tempo failed", double(success?: false)])
+        ).and_return(['', 'Tempo failed', double(success?: false)])
 
         expect(mock_logger).to receive(:warn).with(/Tempo analysis failed \(optional\)/)
-        
+
         result = analyzer.analyze(test_audio_file)
-        expect(result).not_to be_empty  # Should still have pitch data
+        expect(result).not_to be_empty # Should still have pitch data
       end
     end
 
@@ -493,13 +494,13 @@ RSpec.describe ProsodicTextConverter::SonicAnnotatorPitchAnalyzer do
         <<~RDF
           @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
           @prefix event: <http://example.org/event/> .
-          
+
           event:1 <http://example.org/time> "0.0"^^xsd:float ;
                   <http://example.org/value> "150.0"^^xsd:float .
-          
+
           event:2 <http://example.org/time> "0.1"^^xsd:float ;
                   <http://example.org/value> "30.0"^^xsd:float .
-          
+
           event:3 <http://example.org/time> "0.2"^^xsd:float ;
                   <http://example.org/value> "900.0"^^xsd:float .
         RDF
@@ -509,34 +510,36 @@ RSpec.describe ProsodicTextConverter::SonicAnnotatorPitchAnalyzer do
         # Mock RDF parsing infrastructure
         stub_const('RDF::Graph', Class.new)
         stub_const('RDF::Turtle::Reader', Class.new)
-        
+
         mock_graph = instance_double('RDF::Graph')
         mock_reader = instance_double('RDF::Turtle::Reader')
-        
+
         allow(RDF::Graph).to receive(:new).and_return(mock_graph)
         allow(RDF::Turtle::Reader).to receive(:new).with(rdf_output).and_yield(mock_reader)
         allow(mock_reader).to receive(:each_statement)
         allow(mock_graph).to receive(:<<)
-        
+
         # Mock graph queries to return realistic results
         allow(mock_graph).to receive(:each_statement).and_yield(
           double(subject: 'event:1', predicate: double(to_s: 'time'), object: double(to_f: 0.0))
         ).and_yield(
           double(subject: 'event:1', predicate: double(to_s: 'value'), object: double(to_f: 150.0))
         )
-        
+
         allow(mock_graph).to receive(:query).and_return([
-          double(predicate: double(to_s: 'time'), object: double(to_f: 0.0)),
-          double(predicate: double(to_s: 'value'), object: double(to_f: 150.0))
-        ])
+                                                          double(predicate: double(to_s: 'time'),
+                                                                 object: double(to_f: 0.0)),
+                                                          double(predicate: double(to_s: 'value'),
+                                                                 object: double(to_f: 150.0))
+                                                        ])
       end
 
-      # Note: Full RDF parsing is complex to mock completely, so we test the error handling
+      # NOTE: Full RDF parsing is complex to mock completely, so we test the error handling
       it 'handles RDF parsing errors gracefully' do
-        allow(RDF::Graph).to receive(:new).and_raise(StandardError, "RDF parse error")
-        
+        allow(RDF::Graph).to receive(:new).and_raise(StandardError, 'RDF parse error')
+
         expect(mock_logger).to receive(:error).with(/Error parsing RDF output/)
-        
+
         result = analyzer.send(:parse_rdf_output, rdf_output)
         expect(result).to eq([])
       end
@@ -547,21 +550,21 @@ end
 RSpec.describe ProsodicTextConverter::PitchAnalyzerFactory do
   describe '.create' do
     let(:mock_logger) { instance_double(Logger) }
-    
+
     before do
       allow(mock_logger).to receive(:info)
       allow(mock_logger).to receive(:debug)
       allow(mock_logger).to receive(:error)
-      
+
       # Mock Aubio availability
       stub_const('Aubio::Source', Class.new)
       stub_const('Aubio::Pitch', Class.new)
-      
+
       # Mock Sonic Annotator availability
       allow(Open3).to receive(:capture3).with('which', 'sonic-annotator')
-        .and_return(["", "", double(success?: true)])
+                                        .and_return(['', '', double(success?: true)])
       allow(Open3).to receive(:capture3).with('sonic-annotator', '-l')
-        .and_return(["pyin:pyin", "", double(success?: true)])
+                                        .and_return(['pyin:pyin', '', double(success?: true)])
       allow(FileUtils).to receive(:mkdir_p)
       allow(File).to receive(:write)
     end
@@ -599,10 +602,10 @@ RSpec.describe ProsodicTextConverter::PitchAnalyzerFactory do
       before do
         # Mock Aubio availability
         stub_const('Aubio', Module.new)
-        
+
         # Mock Sonic Annotator availability
         allow(Kernel).to receive(:system).with('which sonic-annotator > /dev/null 2>&1')
-          .and_return(true)
+                                         .and_return(true)
       end
 
       it 'returns both backends' do
@@ -627,8 +630,8 @@ RSpec.describe ProsodicTextConverter::PitchAnalyzerFactory do
       before do
         # Aubio gem not available
         allow(described_class).to receive(:require).with('aubio')
-          .and_raise(LoadError)
-        
+                                                   .and_raise(LoadError)
+
         # Sonic Annotator not installed
         allow(Kernel).to receive(:system).and_return(false)
       end
