@@ -3,6 +3,7 @@
 require 'logger'
 require 'timeout'
 require_relative 'converter'
+require_relative '../audio/speech_synthesizer'
 
 module ProsodicTextConverter
   # CLI interface for prosodic text conversion
@@ -57,6 +58,11 @@ module ProsodicTextConverter
           return
         end
 
+        if args.include?('--list-voices')
+          list_elevenlabs_voices
+          return
+        end
+
         # Parse arguments with validation
         options = parse_arguments(args)
         logger.debug("Parsed options: #{options}")
@@ -70,6 +76,11 @@ module ProsodicTextConverter
         
         # Execute conversion based on mode
         result = execute_conversion(converter, options, args)
+        
+        # Handle ElevenLabs synthesis if voice specified
+        if options[:elevenlabs_voice] && result[:ssml_output]
+          synthesize_with_elevenlabs(result[:ssml_output], options)
+        end
         
         # Output results
         output_results(result, args.include?('--verbose'))
@@ -108,6 +119,11 @@ module ProsodicTextConverter
       audio_file = args.find { |arg| arg.start_with?('--audio=') }&.split('=', 2)&.last
       spectrogram_dir = args.find { |arg| arg.start_with?('--spectrogram-dir=') }&.split('=', 2)&.last || './spectrograms'
       
+      # ElevenLabs options
+      elevenlabs_voice = args.find { |arg| arg.start_with?('--elevenlabs-voice=') }&.split('=', 2)&.last
+      elevenlabs_model = args.find { |arg| arg.start_with?('--elevenlabs-model=') }&.split('=', 2)&.last
+      output_file = args.find { |arg| arg.start_with?('--output=') }&.split('=', 2)&.last
+      
       # Get non-option arguments
       input_files = args.reject { |arg| arg.start_with?('--') }
       input_file = input_files.first
@@ -134,7 +150,10 @@ module ProsodicTextConverter
         pitch_backend: pitch_backend,
         audio_file: audio_file,
         spectrogram_dir: spectrogram_dir,
-        input_file: input_file
+        input_file: input_file,
+        elevenlabs_voice: elevenlabs_voice,
+        elevenlabs_model: elevenlabs_model,
+        output_file: output_file
       }
     end
 
@@ -405,6 +424,66 @@ module ProsodicTextConverter
       puts "    • macOS: brew install sonic-visualiser (includes sonic-annotator)"
     end
 
+    # List available ElevenLabs voices
+    #
+    # @return [void]
+    def self.list_elevenlabs_voices
+      begin
+        synthesizer = SpeechSynthesizer.new(provider: :elevenlabs)
+        voices = synthesizer.get_voices
+        
+        puts "Available ElevenLabs voices:"
+        if voices.empty?
+          puts "  No voices found. Check your ELEVENLABS_API_KEY."
+        else
+          voices.each do |voice|
+            puts "  #{voice['voice_id']} - #{voice['name']}"
+            puts "    Category: #{voice['category']}" if voice['category']
+            puts "    Description: #{voice['description']}" if voice['description']
+            puts ""
+          end
+        end
+        
+      rescue StandardError => e
+        logger.error("Failed to list ElevenLabs voices: #{e.message}")
+        puts "Error: #{e.message}"
+        puts "Make sure ELEVENLABS_API_KEY environment variable is set."
+        exit 1
+      end
+    end
+
+    # Synthesize speech using ElevenLabs
+    #
+    # @param ssml_text [String] SSML text to synthesize
+    # @param options [Hash] CLI options including voice and model
+    # @return [void]
+    def self.synthesize_with_elevenlabs(ssml_text, options)
+      begin
+        logger.info("Synthesizing speech with ElevenLabs voice: #{options[:elevenlabs_voice]}")
+        
+        synthesizer = SpeechSynthesizer.new(provider: :elevenlabs)
+        
+        synthesis_options = {}
+        synthesis_options[:model_id] = options[:elevenlabs_model] if options[:elevenlabs_model]
+        
+        audio_data = synthesizer.synthesize_ssml(
+          ssml_text, 
+          voice: options[:elevenlabs_voice],
+          **synthesis_options
+        )
+        
+        output_file = options[:output_file] || 'output.mp3'
+        synthesizer.save_audio(audio_data, output_file)
+        
+        logger.info("Speech synthesis completed: #{output_file}")
+        
+      rescue StandardError => e
+        logger.error("ElevenLabs synthesis failed: #{e.message}")
+        puts "Error synthesizing speech: #{e.message}"
+        exit 1
+      end
+    end
+
     # Print usage information and command-line help
     #
     # @return [void]
@@ -422,8 +501,12 @@ module ProsodicTextConverter
           --spectrogram-dir=DIR  Output directory for spectrograms (default: ./spectrograms)
           --provider=NAME        LLM provider (openai, anthropic, ollama, etc.)
           --model=NAME           Model name (gpt-4, claude-3-sonnet, etc.)
+          --elevenlabs-voice=ID  ElevenLabs voice ID for speech synthesis
+          --elevenlabs-model=ID  ElevenLabs model (eleven_monolingual_v1, etc.)
+          --output=FILE          Output audio file (when using ElevenLabs)
           --verbose              Show analysis information
           --list-backends        Show available pitch analysis backends
+          --list-voices          Show available ElevenLabs voices
           --help                Show this help
           
         Patterns:
@@ -473,6 +556,15 @@ module ProsodicTextConverter
           
           # Full pipeline with research-grade analysis
           #{$0} --audio=speaker.wav --pitch-backend=sonic_annotator --provider=anthropic --model=claude-3-sonnet text.txt
+          
+          # Generate speech with ElevenLabs
+          #{$0} --elevenlabs-voice=21m00Tcm4TlvDq8ikWAM --output=speech.mp3 input.txt
+          
+          # List available ElevenLabs voices
+          #{$0} --list-voices
+          
+          # Complete pipeline: analyze audio, convert text, and synthesize speech
+          #{$0} --audio=sample.wav --elevenlabs-voice=21m00Tcm4TlvDq8ikWAM --output=result.mp3 text.txt
       USAGE
     end
   end
