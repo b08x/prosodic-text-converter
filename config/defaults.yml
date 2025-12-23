@@ -12,7 +12,7 @@ analysis_timeout: 60
 spectrogram_dir: "./spectrograms"
 
 # Prosodic Pattern Configuration
-default_pattern: "deliberate"
+default_pattern: "prose"
 
 # Output Configuration
 output_format: "ssml"

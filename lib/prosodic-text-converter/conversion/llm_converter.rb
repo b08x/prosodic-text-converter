@@ -473,6 +473,7 @@ module ProsodicTextConverter
     def build_analysis_conversion_prompt(text_analysis, pattern)
       text = text_analysis[:original_text]
       sentences = text_analysis[:sentences]
+      words_per_segment = optimal_words_per_chunk(pattern)
 
       # Build sentence analysis summary
       sentence_summary = sentences.map do |sent|
@@ -481,6 +482,81 @@ module ProsodicTextConverter
         "Sentence #{sent[:index] + 1}: #{sent[:word_count]} words, #{syllables} syllables" +
           (pause_hints ? " (#{pause_hints})" : '')
       end.join("\n")
+
+      # Determine if this is a prose-like pattern (longer segments)
+      is_prose_pattern = pattern.segment_duration >= 4.0
+
+      if is_prose_pattern
+        build_prose_conversion_prompt(text_analysis, pattern, sentence_summary)
+      else
+        build_standard_conversion_prompt(text_analysis, pattern, sentence_summary)
+      end
+    end
+
+    # Build conversion prompt optimized for prose-like flow (longer segments)
+    #
+    # @param text_analysis [Hash] structured text analysis
+    # @param pattern [ProsodicPattern] prosodic pattern
+    # @param sentence_summary [String] sentence analysis summary
+    # @return [String] prose-optimized conversion prompt
+    def build_prose_conversion_prompt(text_analysis, pattern, sentence_summary)
+      text = text_analysis[:original_text]
+      sentences = text_analysis[:sentences]
+      words_per_segment = optimal_words_per_chunk(pattern)
+
+      <<~PROMPT
+        Convert this text to natural-flowing SSML for text-to-speech synthesis with prose-like continuity.
+        Focus on creating longer, natural segments that flow like continuous speech rather than choppy phrases.
+
+        PROSODIC PATTERN (PROSE FLOW):
+        - Target segment length: #{pattern.segment_duration}s (approximately #{words_per_segment} words per segment)
+        - Minimal pauses: #{(pattern.pause_duration * 1000).to_i}ms only at major boundaries
+        - Subtle pitch variation: ±#{pattern.pitch_variation}% for natural expression
+        - Speaking rate: #{pattern.rate}
+
+        ORIGINAL TEXT:
+        #{text}
+
+        LINGUISTIC ANALYSIS:
+        - Language: #{text_analysis[:language]}
+        - Total sentences: #{text_analysis[:sentence_count]}
+        - Total syllables: #{sentences.sum { |s| s[:words].sum { |w| w[:syllable_count] } }}
+
+        #{sentence_summary}
+
+        PROSE FLOW REQUIREMENTS:
+        1. **Minimize segmentation**: Combine multiple sentences or clauses into longer prosodic units
+        2. **Natural boundaries only**: Break only at paragraph boundaries, major clause breaks, or dialogue changes
+        3. **Continuous flow**: Let sentences flow together naturally with only comma-level pauses (100-150ms)
+        4. **Preserve meaning**: Keep related ideas together in the same prosodic segment
+        5. **Subtle prosody**: Use gentle pitch and rate variations to maintain engagement
+        6. **Avoid choppy breaks**: Don't break at arbitrary word counts - respect semantic units
+
+        FORMATTING REQUIREMENTS:
+        1. Create 2-4 long segments maximum for most texts (unless very long)
+        2. Use <break time="#{(pattern.pause_duration * 1000).to_i}ms"/> ONLY at major semantic boundaries
+        3. Use <break time="100ms"/> for comma pauses within segments if needed
+        4. Apply <prosody> tags with minimal, subtle variations (±#{pattern.pitch_variation}%)
+        5. Target #{words_per_segment} words per segment, but prioritize semantic coherence
+        6. Return ONLY the SSML markup wrapped in <speak> tags
+
+        PROSE EXAMPLE:
+        <speak>
+        <prosody rate="#{pattern.rate}" pitch="+1%">Long flowing sentence that continues naturally with its related thoughts, allowing the listener to hear the content as connected prose rather than fragmented phrases.</prosody>
+        <break time="#{(pattern.pause_duration * 1000).to_i}ms"/>
+        <prosody rate="#{pattern.rate}" pitch="-1%">The next major thought or paragraph continues with the same natural flow, maintaining continuity and avoiding unnecessary interruptions in the speech rhythm.</prosody>
+        </speak>
+      PROMPT
+    end
+
+    # Build conversion prompt for standard segmentation patterns (shorter segments)
+    #
+    # @param text_analysis [Hash] structured text analysis
+    # @param pattern [ProsodicPattern] prosodic pattern  
+    # @param sentence_summary [String] sentence analysis summary
+    # @return [String] standard conversion prompt
+    def build_standard_conversion_prompt(text_analysis, pattern, sentence_summary)
+      text = text_analysis[:original_text]
 
       <<~PROMPT
         Convert this text to match the specified prosodic pattern for text-to-speech synthesis.
@@ -498,8 +574,7 @@ module ProsodicTextConverter
         LINGUISTIC ANALYSIS:
         - Language: #{text_analysis[:language]}
         - Total sentences: #{text_analysis[:sentence_count]}
-        - Total syllables: #{sentences.sum { |s| s[:words].sum { |w| w[:syllable_count] } }}
-
+        
         #{sentence_summary}
 
         PROSODIC CONSIDERATIONS:
@@ -786,6 +861,87 @@ module ProsodicTextConverter
           (pause_hints ? " (#{pause_hints})" : '')
       end.join("\n")
 
+      # Check if this is a prose-like pattern
+      is_prose_pattern = pattern.segment_duration >= 4.0
+
+      if is_prose_pattern
+        build_elevenlabs_v3_prose_prompt(text_analysis, pattern, sentence_summary)
+      else
+        build_elevenlabs_v3_standard_prompt(text_analysis, pattern, sentence_summary)
+      end
+    end
+
+    # Build ElevenLabs v3 prompt optimized for prose flow
+    #
+    # @param text_analysis [Hash] structured text analysis
+    # @param pattern [ProsodicPattern] prosodic pattern
+    # @param sentence_summary [String] sentence analysis summary
+    # @return [String] v3 prose-optimized prompt
+    def build_elevenlabs_v3_prose_prompt(text_analysis, pattern, sentence_summary)
+      text = text_analysis[:original_text]
+      words_per_segment = optimal_words_per_chunk(pattern)
+
+      <<~PROMPT
+        Convert this text to natural-flowing SSML for ElevenLabs v3 text-to-speech synthesis with prose-like continuity.
+        Focus on creating longer, natural segments with strategic use of v3 audio tags for emotional expression.
+
+        PROSODIC PATTERN (PROSE FLOW):
+        - Target segment length: #{pattern.segment_duration}s (approximately #{words_per_segment} words per segment)
+        - Minimal pauses: #{(pattern.pause_duration * 1000).to_i}ms only at major boundaries
+        - Subtle pitch variation: ±#{pattern.pitch_variation}% for natural expression
+        - Speaking rate: #{pattern.rate}
+
+        ORIGINAL TEXT:
+        #{text}
+
+        LINGUISTIC ANALYSIS:
+        - Language: #{text_analysis[:language]}
+        - Total sentences: #{text_analysis[:sentence_count]}
+
+        #{sentence_summary}
+
+        ELEVENLABS V3 AUDIO TAG GUIDANCE FOR PROSE:
+        Use bracketed audio tags sparingly and naturally within longer segments:
+        - [sighs], [exhales] for thoughtful moments
+        - [quietly], [whispers] for intimate passages  
+        - [excited], [enthusiastic] for energetic content
+        - [contemplative], [thoughtful] for reflective sections
+        
+        PROSE FLOW REQUIREMENTS:
+        1. **Minimize segmentation**: Combine multiple sentences into longer prosodic units
+        2. **Natural boundaries only**: Break only at paragraph boundaries or major semantic shifts
+        3. **Continuous flow**: Let sentences flow together naturally with minimal interruptions
+        4. **Strategic audio tags**: Place v3 tags naturally within flowing segments, not at boundaries
+        5. **Subtle prosody**: Use gentle variations to maintain engagement
+        6. **Preserve narrative flow**: Keep related ideas together in the same segment
+
+        FORMATTING REQUIREMENTS:
+        1. Create 2-4 long segments maximum for most texts
+        2. Use <break time="#{(pattern.pause_duration * 1000).to_i}ms"/> ONLY at major semantic boundaries
+        3. Use <break time="100ms"/> for comma pauses within segments if needed
+        4. Apply <prosody> tags with minimal variations (±#{pattern.pitch_variation}%)
+        5. Include ElevenLabs v3 audio tags naturally within flowing prose
+        6. Return ONLY the SSML markup wrapped in <speak> tags
+
+        PROSE EXAMPLE WITH V3 TAGS:
+        <speak>
+        <prosody rate="#{pattern.rate}" pitch="+1%">The evening air was [quietly] filled with the sound of distant traffic, creating a gentle backdrop as she walked through the familiar streets, [contemplative] reflecting on the day's events and what tomorrow might bring.</prosody>
+        <break time="#{(pattern.pause_duration * 1000).to_i}ms"/>
+        <prosody rate="#{pattern.rate}" pitch="-1%">When she finally reached her destination, [sighs] she paused to take in the scene before her, knowing that this moment would stay with her for years to come.</prosody>
+        </speak>
+      PROMPT
+    end
+
+    # Build standard ElevenLabs v3 prompt for shorter segments
+    #
+    # @param text_analysis [Hash] structured text analysis
+    # @param pattern [ProsodicPattern] prosodic pattern
+    # @param sentence_summary [String] sentence analysis summary
+    # @return [String] standard v3 prompt
+    def build_elevenlabs_v3_standard_prompt(text_analysis, pattern, sentence_summary)
+      text = text_analysis[:original_text]
+      sentences = text_analysis[:sentences]
+
       <<~PROMPT
         Convert this text to match the specified prosodic pattern for ElevenLabs v3 text-to-speech synthesis.
         Use the detailed linguistic analysis to make intelligent prosodic decisions and incorporate ElevenLabs v3 audio tags for enhanced expression.
@@ -890,6 +1046,87 @@ module ProsodicTextConverter
         "Sentence #{sent[:index] + 1}: #{sent[:word_count]} words, #{syllables} syllables" +
           (pause_hints ? " (#{pause_hints})" : '')
       end.join("\n")
+
+      # Check if this is a prose-like pattern
+      is_prose_pattern = pattern.segment_duration >= 4.0
+
+      if is_prose_pattern
+        build_elevenlabs_phoneme_prose_prompt(text_analysis, pattern, sentence_summary)
+      else
+        build_elevenlabs_phoneme_standard_prompt(text_analysis, pattern, sentence_summary)
+      end
+    end
+
+    # Build ElevenLabs phoneme prompt optimized for prose flow
+    #
+    # @param text_analysis [Hash] structured text analysis
+    # @param pattern [ProsodicPattern] prosodic pattern
+    # @param sentence_summary [String] sentence analysis summary
+    # @return [String] phoneme prose-optimized prompt
+    def build_elevenlabs_phoneme_prose_prompt(text_analysis, pattern, sentence_summary)
+      text = text_analysis[:original_text]
+      words_per_segment = optimal_words_per_chunk(pattern)
+
+      <<~PROMPT
+        Convert this text to natural-flowing SSML for ElevenLabs text-to-speech synthesis with prose-like continuity.
+        Focus on creating longer, natural segments with strategic phoneme tags for pronunciation accuracy.
+
+        PROSODIC PATTERN (PROSE FLOW):
+        - Target segment length: #{pattern.segment_duration}s (approximately #{words_per_segment} words per segment)
+        - Minimal pauses: #{(pattern.pause_duration * 1000).to_i}ms only at major boundaries
+        - Subtle pitch variation: ±#{pattern.pitch_variation}% for natural expression
+        - Speaking rate: #{pattern.rate}
+
+        ORIGINAL TEXT:
+        #{text}
+
+        LINGUISTIC ANALYSIS:
+        - Language: #{text_analysis[:language]}
+        - Total sentences: #{text_analysis[:sentence_count]}
+
+        #{sentence_summary}
+
+        PHONEME TAG GUIDANCE FOR PROSE:
+        For any words that might be mispronounced, provide phonetic transcription within flowing segments:
+        - Use format: <phoneme alphabet="ipa" ph="...">word</phoneme>
+        - Target words: proper names, technical terms, abbreviations, foreign words
+        - Use International Phonetic Alphabet (IPA) notation
+        - Apply sparingly to maintain prose flow
+        
+        PROSE FLOW REQUIREMENTS:
+        1. **Minimize segmentation**: Combine multiple sentences into longer prosodic units
+        2. **Natural boundaries only**: Break only at paragraph boundaries or major semantic shifts
+        3. **Continuous flow**: Let sentences flow together naturally with minimal interruptions
+        4. **Strategic phoneme use**: Apply phoneme tags only for critical pronunciation needs
+        5. **Subtle prosody**: Use gentle variations to maintain engagement
+        6. **Preserve narrative flow**: Keep related ideas together in the same segment
+
+        FORMATTING REQUIREMENTS:
+        1. Create 2-4 long segments maximum for most texts
+        2. Use <break time="#{(pattern.pause_duration * 1000).to_i}ms"/> ONLY at major semantic boundaries
+        3. Use <break time="100ms"/> for comma pauses within segments if needed
+        4. Apply <prosody> tags with minimal variations (±#{pattern.pitch_variation}%)
+        5. Include <phoneme> tags only for words requiring pronunciation guidance
+        6. Return ONLY the SSML markup wrapped in <speak> tags
+
+        PROSE EXAMPLE WITH PHONEMES:
+        <speak>
+        <prosody rate="#{pattern.rate}" pitch="+1%">The <phoneme alphabet="ipa" ph="ˈkʌmpəni">company</phoneme> announced their latest research into artificial intelligence, demonstrating remarkable progress in natural language processing and machine learning applications that could transform how we interact with technology.</prosody>
+        <break time="#{(pattern.pause_duration * 1000).to_i}ms"/>
+        <prosody rate="#{pattern.rate}" pitch="-1%">This breakthrough represents years of dedicated work by teams of engineers and researchers who have pushed the boundaries of what we thought possible in computational linguistics.</prosody>
+        </speak>
+      PROMPT
+    end
+
+    # Build standard ElevenLabs phoneme prompt for shorter segments
+    #
+    # @param text_analysis [Hash] structured text analysis
+    # @param pattern [ProsodicPattern] prosodic pattern
+    # @param sentence_summary [String] sentence analysis summary
+    # @return [String] standard phoneme prompt
+    def build_elevenlabs_phoneme_standard_prompt(text_analysis, pattern, sentence_summary)
+      text = text_analysis[:original_text]
+      sentences = text_analysis[:sentences]
 
       <<~PROMPT
         Convert this text to match the specified prosodic pattern for ElevenLabs text-to-speech synthesis.

@@ -291,6 +291,20 @@ module ProsodicTextConverter
           pause_duration: 0.5,
           pitch_variation: 7,
           rate: 'slow'
+        ),
+        prose: ProsodicPattern.new(
+          name: 'prose',
+          segment_duration: 6.0,
+          pause_duration: 0.15,
+          pitch_variation: 3,
+          rate: 'medium'
+        ),
+        natural: ProsodicPattern.new(
+          name: 'natural',
+          segment_duration: 4.5,
+          pause_duration: 0.2,
+          pitch_variation: 4,
+          rate: 'medium'
         )
       }
     end
@@ -557,7 +571,7 @@ module ProsodicTextConverter
     #
     # @return [ProsodicPattern] default pattern
     def default_pattern
-      self.class.predefined_patterns[:deliberate]
+      self.class.predefined_patterns[:prose]
     end
 
     # Validate pitch backend availability
