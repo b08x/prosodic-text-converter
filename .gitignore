@@ -9,3 +9,4 @@ docs/Lingua
 **/tmp/
 .code-packager-csv-config
 *.mp3
+build/

@@ -49,70 +49,73 @@ install_sonic_annotator() {
     echo "✅ sonic-annotator installed successfully"
 }
 
-install_vamp_plugins() {
-    echo "📥 Installing Vamp plugins to ~/.local/share/vamp-plugins/..."
+install_vamp_sdk() {
+    echo "📥 Building Vamp Plugin SDK from source..."
+    VAMP_DEST="$HOME/.local/share/vamp-plugins"
+    mkdir -p build && cd build
+    if [ ! -d "vamp-plugin-sdk" ]; then
+        git clone https://github.com/vamp-plugins/vamp-plugin-sdk
+    fi
+    cd vamp-plugin-sdk
+    mkdir -p build && cd build
+    cmake .. -DVAMPSDK_BUILD_EXAMPLE_PLUGINS=ON
+    cmake --build . -j$(nproc)
+    
+    # Copy example plugins
+    find . -name "*.so" -exec cp {} "$VAMP_DEST/" \;
+    cd ../../../
+    echo "✅ Vamp SDK examples built and installed to $VAMP_DEST"
+}
+
+install_pyin_plugin() {
+    echo "📥 Building pYIN plugin from source..."
+    VAMP_DEST="$HOME/.local/share/vamp-plugins"
+    mkdir -p build && cd build
+    if [ ! -d "vamp-pyin-f0-plugin" ]; then
+        git clone https://gitlab.com/tallero/vamp-pyin-f0-plugin
+    fi
+    cd vamp-pyin-f0-plugin
+    
+    # Build using specific flags requested for dynamic linking
+    make -f Makefile.linux64 \
+        PLUGIN_LDFLAGS="-shared -lvamp-sdk -Wl,--version-script=vamp-plugin.map" \
+        pyin.so
+        
+    cp pyin.so "$VAMP_DEST/"
+    cp pyin.n3 "$VAMP_DEST/"
+    cp pyin.cat "$VAMP_DEST/"
+    cd ../../
+    echo "✅ pYIN plugin built and installed to $VAMP_DEST"
+}
+
+install_aubio_plugins() {
+    echo "📥 Installing Aubio Vamp plugins..."
     VAMP_DEST="$HOME/.local/share/vamp-plugins"
     SRC_DIR="lib/vamp/plugins"
     mkdir -p "$VAMP_DEST"
     mkdir -p "$SRC_DIR"
     TMP_DIR=$(mktemp -d)
-
-    # 1. pYIN plugin
-    echo "   - Checking for pYIN plugin..."
-    if [ -f "$SRC_DIR/pyin-v1.2-linux64.tar.gz" ]; then
-        tar -xzf "$SRC_DIR/pyin-v1.2-linux64.tar.gz" -C "$TMP_DIR"
-        cp "$TMP_DIR/pyin-v1.2-linux64/pyin.so" "$VAMP_DEST/"
-    elif [ -f "$SRC_DIR/pyin-1.2.tar.gz" ]; then
-        echo "     ⚠️  Found source archive pyin-1.2.tar.gz but no binary. Extraction only."
-        tar -xzf "$SRC_DIR/pyin-1.2.tar.gz" -C "$TMP_DIR"
-        # Try to copy metadata if present
-        find "$TMP_DIR" -name "*.n3" -exec cp {} "$VAMP_DEST/" \; 2>/dev/null || true
-        find "$TMP_DIR" -name "*.cat" -exec cp {} "$VAMP_DEST/" \; 2>/dev/null || true
-    else
-        echo "     📥 Downloading pYIN plugin (binary)..."
-        if curl -L "https://code.soundsoftware.ac.uk/attachments/download/2631/pyin-v1.2-linux64.tar.gz" -o "$SRC_DIR/pyin-v1.2-linux64.tar.gz"; then
-            tar -xzf "$SRC_DIR/pyin-v1.2-linux64.tar.gz" -C "$TMP_DIR"
-            cp "$TMP_DIR/pyin-v1.2-linux64/pyin.so" "$VAMP_DEST/"
-        else
-            echo "     ❌ Failed to download pYIN plugin (server might be down)"
-        fi
-    fi
-
-    # 2. Vamp SDK Examples
-    echo "   - Checking for Vamp SDK examples..."
-    if [ -f "$SRC_DIR/vamp-plugin-sdk-2.10.0-binaries-amd64-linux.tar.gz" ]; then
-        tar -xzf "$SRC_DIR/vamp-plugin-sdk-2.10.0-binaries-amd64-linux.tar.gz" -C "$TMP_DIR"
-        find "$TMP_DIR" -name "*.so" -exec cp {} "$VAMP_DEST/" \;
-    elif [ -f "$SRC_DIR/vamp-plugin-sdk-2.10.0.tar.gz" ]; then
-        echo "     ⚠️  Found SDK source pyin-1.2.tar.gz. No examples to extract."
-    else
-        echo "     📥 Downloading Vamp SDK (binaries)..."
-        if curl -L "https://code.soundsoftware.ac.uk/attachments/download/2693/vamp-plugin-sdk-2.10.0-binaries-amd64-linux.tar.gz" -o "$SRC_DIR/vamp-plugin-sdk-2.10.0-binaries-amd64-linux.tar.gz"; then
-            tar -xzf "$SRC_DIR/vamp-plugin-sdk-2.10.0-binaries-amd64-linux.tar.gz" -C "$TMP_DIR"
-            find "$TMP_DIR" -name "*.so" -exec cp {} "$VAMP_DEST/" \;
-        else
-             echo "     ❌ Failed to download Vamp SDK binaries"
-        fi
-    fi
-
-    # 3. Aubio Vamp plugins
-    echo "   - Checking for Aubio Vamp plugins..."
+    
     if [ -f "$SRC_DIR/vamp-aubio-plugins-0.5.1-x86_64.tar.bz2" ]; then
         tar -xjf "$SRC_DIR/vamp-aubio-plugins-0.5.1-x86_64.tar.bz2" -C "$TMP_DIR"
-        find "$TMP_DIR" -name "*.so" -exec cp {} "$VAMP_DEST/" \;
-        find "$TMP_DIR" -name "*.n3" -exec cp {} "$VAMP_DEST/" \;
     else
-        echo "     📥 Downloading Aubio Vamp plugins..."
         if curl -L "https://aubio.org/bin/vamp-aubio-plugins/0.5.1/vamp-aubio-plugins-0.5.1-x86_64.tar.bz2" -o "$SRC_DIR/vamp-aubio-plugins-0.5.1-x86_64.tar.bz2"; then
             tar -xjf "$SRC_DIR/vamp-aubio-plugins-0.5.1-x86_64.tar.bz2" -C "$TMP_DIR"
-            cp "$TMP_DIR/vamp-aubio-plugins-0.5.1-x86_64/"*.so "$VAMP_DEST/"
-        else
-            echo "     ❌ Failed to download Aubio plugins"
         fi
     fi
-
+    
+    if [ -d "$TMP_DIR" ]; then
+        find "$TMP_DIR" -name "*.so" -exec cp {} "$VAMP_DEST/" \;
+        find "$TMP_DIR" -name "*.n3" -exec cp {} "$VAMP_DEST/" \;
+    fi
     rm -rf "$TMP_DIR"
-    echo "✅ Vamp plugins installation attempted in $VAMP_DEST"
+}
+
+install_vamp_plugins() {
+    echo "📥 Setting up Vamp plugins (source builds)..."
+    install_vamp_sdk
+    install_pyin_plugin
+    install_aubio_plugins
 }
 
 # --- System Dependencies ---
@@ -124,22 +127,22 @@ case "$OSTYPE" in
         if command -v apt-get &> /dev/null; then
             # Debian/Ubuntu
             sudo apt-get update
-            sudo apt-get install -y sox imagemagick ruby ruby-dev build-essential aubio-tools libboost-all-dev
+            sudo apt-get install -y sox imagemagick ruby ruby-dev build-essential aubio-tools libboost-all-dev cmake git
         elif command -v pacman &> /dev/null; then
             # Arch Linux
-            sudo pacman -Sy --needed sox imagemagick ruby aubio boost
+            sudo pacman -Sy --needed sox imagemagick ruby aubio boost cmake git
         elif command -v yum &> /dev/null; then
             # RHEL/CentOS
-            sudo yum install -y sox ImageMagick ruby ruby-devel gcc aubio boost-devel
+            sudo yum install -y sox ImageMagick ruby ruby-devel gcc aubio boost-devel cmake git
         else
-            echo "❌ Unsupported Linux distribution. Please install sox, imagemagick, aubio, and ruby manually."
+            echo "❌ Unsupported Linux distribution. Please install sox, imagemagick, aubio, ruby, cmake, and git manually."
             exit 1
         fi
         ;;
     darwin*)
         # macOS
         if command -v brew &> /dev/null; then
-            brew install sox imagemagick ruby aubio boost
+            brew install sox imagemagick ruby aubio boost cmake git
         else
             echo "❌ Homebrew not found. Please install Homebrew first:"
             echo "   /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""

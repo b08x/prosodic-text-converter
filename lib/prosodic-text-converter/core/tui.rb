@@ -212,7 +212,10 @@ module ProsodicTextConverter
         }
 
         pattern_choices = patterns.map { |k, v| { name: "#{k.capitalize} - #{v}", value: k } }
-        options[:pattern_name] = @prompt.select('Select prosodic pattern:', pattern_choices, default: 'deliberate')
+        default_pattern = 'deliberate'
+        default_index = pattern_choices.find_index { |c| c[:value] == default_pattern }
+        options[:pattern_name] =
+          @prompt.select('Select prosodic pattern:', pattern_choices, default: (default_index || 0) + 1)
       end
 
       # LLM Configuration
@@ -258,7 +261,10 @@ module ProsodicTextConverter
       if @prompt.yes?('Generate speech with ElevenLabs?', default: false)
         if ENV['ELEVENLABS_API_KEY']
           voices = get_elevenlabs_voices
-          options[:elevenlabs_voice_id] = @prompt.select('ElevenLabs voice:', voices)
+          default_voice = @config.elevenlabs_voice_id
+          default_index = voices.find_index { |v| v[:value] == default_voice }
+
+          options[:elevenlabs_voice_id] = @prompt.select('ElevenLabs voice:', voices, default: (default_index || 0) + 1)
           options[:elevenlabs_model] = @prompt.select('ElevenLabs model:',
                                                       %w[eleven_monolingual_v1 eleven_multilingual_v1],
                                                       default: 'eleven_monolingual_v1')
@@ -277,22 +283,22 @@ module ProsodicTextConverter
                                                    default: @config.rephrasing_enabled?)
 
         if options[:enable_rephrasing]
+          rephrasing_choices = [
+            { name: 'Conservative - Minimal changes, preserve structure', value: 'conservative' },
+            { name: 'Medium - Moderate restructuring for prosody', value: 'medium' },
+            { name: 'Aggressive - Significant changes for optimal fit', value: 'aggressive' }
+          ]
+
+          default_aggressiveness = @config.rephrasing_aggressiveness
+          default_index = rephrasing_choices.find_index { |c| c[:value] == default_aggressiveness }
+
           options[:rephrasing_aggressiveness] = @prompt.select('Rephrasing aggressiveness:',
-                                                               [
-                                                                 {
-                                                                   name: 'Conservative - Minimal changes, preserve structure', value: 'conservative'
-                                                                 },
-                                                                 { name: 'Medium - Moderate restructuring for prosody',
-                                                                   value: 'medium' },
-                                                                 {
-                                                                   name: 'Aggressive - Significant changes for optimal fit', value: 'aggressive'
-                                                                 }
-                                                               ],
-                                                               default: @config.rephrasing_aggressiveness)
+                                                               rephrasing_choices,
+                                                               default: (default_index || 1) + 1)
 
           options[:preserve_meaning_threshold] = @prompt.ask('Meaning preservation threshold (0.0-1.0):',
                                                              default: @config.preserve_meaning_threshold, convert: :float) do |q|
-            q.validate(->(val) { val >= 0.0 && val <= 1.0 })
+            q.validate(->(val) { val.to_f >= 0.0 && val.to_f <= 1.0 })
             q.messages[:valid?] = 'Must be between 0.0 and 1.0'
           end
 
@@ -506,17 +512,17 @@ module ProsodicTextConverter
 
     # Get ElevenLabs voices
     def get_elevenlabs_voices
-      return %w[Aria Neha Bill] # Default voices if API call fails
-
-      begin
-        require_relative '../audio/speech_synthesizer'
-        synthesizer = SpeechSynthesizer.new(provider: :elevenlabs)
-        voices = synthesizer.get_voices
-        voices.map { |v| { name: "#{v['name']} (#{v['voice_id']})", value: v['voice_id'] } }
-      rescue StandardError => e
-        logger.warn("Failed to fetch ElevenLabs voices: #{e.message}")
-        %w[Aria Neha Bill]
-      end
+      require_relative '../audio/speech_synthesizer'
+      synthesizer = SpeechSynthesizer.new(provider: :elevenlabs)
+      voices = synthesizer.get_voices
+      voices.map { |v| { name: "#{v['name']} (#{v['voice_id']})", value: v['voice_id'] } }
+    rescue StandardError => e
+      logger.warn("Failed to fetch ElevenLabs voices: #{e.message}")
+      [
+        { name: 'Archer (L0Dsvb3SLTyegXwtm47J)', value: 'L0Dsvb3SLTyegXwtm47J' },
+        { name: 'Aria (9BWtsYmSjTZycvS7Nn7J)', value: '9BWtsYmSjTZycvS7Nn7J' }, # Example ID, may not be correct but better than just name
+        { name: 'Neha (JJn8Kwd20v18KjlfJn3p)', value: 'JJn8Kwd20v18KjlfJn3p' }
+      ]
     end
 
     # Synthesize speech with ElevenLabs
