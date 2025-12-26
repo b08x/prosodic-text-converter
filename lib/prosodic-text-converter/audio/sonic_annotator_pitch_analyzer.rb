@@ -70,13 +70,15 @@ module ProsodicTextConverter
         start_time = Time.now
 
         # Extract pitch data with timeout using CSV output
-        pitch_data = Timeout.timeout(300) do # 5 minute timeout
+        timeout = @config ? @config.analysis_timeout : 300
+        pitch_data = Timeout.timeout(timeout) do
           extract_pitch_data_csv(audio_file)
         end
         logger.debug("Pitch extraction completed, #{pitch_data.length} data points")
 
         # Extract tempo data with timeout (optional, non-failing)
-        tempo_data = Timeout.timeout(180) do # 3 minute timeout
+        tempo_timeout = @config ? @config.analysis_timeout : 180
+        tempo_data = Timeout.timeout(tempo_timeout) do
           extract_tempo_data_csv(audio_file)
         end
         logger.debug("Tempo extraction completed, #{tempo_data.length} data points")

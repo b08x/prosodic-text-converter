@@ -1,0 +1,165 @@
+# Prompt templates for LLM-based prosodic conversion
+# These can be overridden for different languages or styles
+
+system_prompt: |
+  You are an expert in speech synthesis and prosodic text formatting. 
+  Your task is to convert regular text into SSML format that matches specific prosodic patterns.
+
+  Always:
+  - Maintain the original meaning and intent
+  - Use proper SSML syntax with <prosody> and <break> tags
+  - Wrap output in <speak> tags
+  - Create natural-sounding speech patterns
+  - Vary pitch subtly for engaging delivery
+
+conversion_prompt_template: |
+  Convert this text to match the specified prosodic pattern for text-to-speech synthesis.
+
+  PROSODIC PATTERN:
+  - Segment duration: %{segment_duration}s (%{words_per_segment} words max per segment)
+  - Pause duration: %{pause_ms}ms between segments
+  - Pitch variation: ±%{pitch_variation}%% between segments
+  - Speaking rate: %{rate}
+
+  ORIGINAL TEXT:
+  %{text}
+
+  SUGGESTED CHUNKING:
+  %{chunks}
+
+  FORMATTING REQUIREMENTS:
+  1. Break into %{chunk_count} segments of ~%{segment_duration}s each
+  2. Use <break time="%{pause_ms}ms"/> between segments
+  3. Apply <prosody> tags with subtle pitch variations (±%{pitch_variation}%%)
+  4. Maintain semantic coherence across chunk boundaries
+  5. Return ONLY the SSML markup wrapped in <speak> tags
+
+standard_conversion_prompt_template: |
+  Convert this text to match the specified prosodic pattern for text-to-speech synthesis.
+  Use the detailed linguistic analysis to make intelligent prosodic decisions.
+
+  PROSODIC PATTERN:
+  - Segment duration: %{segment_duration}s (%{words_per_segment} words max per segment)
+  - Pause duration: %{pause_ms}ms between segments
+  - Pitch variation: ±%{pitch_variation}%% between segments
+  - Speaking rate: %{rate}
+
+  ORIGINAL TEXT:
+  %{text}
+
+  LINGUISTIC ANALYSIS:
+  - Language: %{language}
+  - Total sentences: %{sentence_count}
+
+  %{sentence_summary}
+
+  PROSODIC CONSIDERATIONS:
+  1. Use punctuation analysis to determine natural pause points
+  2. Consider syllable density for timing adjustments
+  3. Respect discourse markers and conjunctions for appropriate pauses
+  4. Break at prosodic boundaries rather than arbitrary word counts
+  5. Use pitch variation to maintain engagement while preserving meaning
+  6. Adjust speaking rate based on content complexity
+
+  FORMATTING REQUIREMENTS:
+  1. Create segments that respect linguistic boundaries
+  2. Use <break time="%{pause_ms}ms"/> for major pauses
+  3. Use shorter breaks (100-200ms) for comma pauses
+  4. Apply <prosody> tags with subtle pitch variations (±%{pitch_variation}%%)
+  5. Match segment duration to %{segment_duration}s target
+  6. Return ONLY the SSML markup wrapped in <speak> tags
+
+prose_conversion_prompt_template: |
+  Convert this text to natural-flowing SSML for text-to-speech synthesis with prose-like continuity.
+  Focus on creating longer, natural segments that flow like continuous speech rather than choppy phrases.
+
+  PROSODIC PATTERN (PROSE FLOW):
+  - Target segment length: %{segment_duration}s (approximately %{words_per_segment} words per segment)
+  - Minimal pauses: %{pause_ms}ms only at major boundaries
+  - Subtle pitch variation: ±%{pitch_variation}%% for natural expression
+  - Speaking rate: %{rate}
+
+  ORIGINAL TEXT:
+  %{text}
+
+  LINGUISTIC ANALYSIS:
+  - Language: %{language}
+  - Total sentences: %{sentence_count}
+  - Total syllables: %{total_syllables}
+
+  %{sentence_summary}
+
+  PROSE FLOW REQUIREMENTS:
+  1. **Minimize segmentation**: Combine multiple sentences or clauses into longer prosodic units
+  2. **Natural boundaries only**: Break only at paragraph boundaries, major clause breaks, or dialogue changes
+  3. **Continuous flow**: Let sentences flow together naturally with only comma-level pauses (100-150ms)
+  4. **Preserve meaning**: Keep related ideas together in the same prosodic segment
+  5. **Subtle prosody**: Use gentle pitch and rate variations to maintain engagement
+  6. **Avoid choppy breaks**: Don't break at arbitrary word counts - respect semantic units
+
+  FORMATTING REQUIREMENTS:
+  1. Create 2-4 long segments maximum for most texts (unless very long)
+  2. Use <break time="%{pause_ms}ms"/> ONLY at major semantic boundaries
+  3. Use <break time="100ms"/> for comma pauses within segments if needed
+  4. Apply <prosody> tags with minimal, subtle variations (±%{pitch_variation}%%)
+  5. Target %{words_per_segment} words per segment, but prioritize semantic coherence
+  6. Return ONLY the SSML markup wrapped in <speak> tags
+
+sfl_rephrasing_system_prompt: |
+  You are an expert in Systemic Functional Linguistics (SFL) and prosodic text optimization for speech synthesis.
+  Your task is to rephrase text to better match specific prosodic patterns while preserving meaning through SFL principles.
+
+  SFL Framework for Rephrasing:
+  1. **Ideational Metafunction**: Preserve the core experiential meaning (who does what, when, where, how)
+  2. **Interpersonal Metafunction**: Maintain the speaker's attitude, mood, and relationship with audience
+  3. **Textual Metafunction**: Optimize information flow and thematic structure for prosodic constraints
+
+  Key SFL Strategies for Prosodic Optimization:
+  - **Thematic Progression**: Reorganize Theme-Rheme structure to fit segment boundaries
+  - **Information Packaging**: Use Given-New information flow to guide pause placement
+  - **Cohesive Devices**: Employ reference, substitution, ellipsis to manage segment length
+  - **Transitivity Patterns**: Adjust process types and participant roles for optimal rhythm
+  - **Mood and Modality**: Preserve interpersonal meaning while adjusting clause structure
+  - **Nominalization**: Convert clauses to nominal groups or vice versa for length control
+  - **Hypotaxis/Parataxis**: Adjust clause combining for prosodic boundaries
+
+  Always:
+  - Preserve semantic content and pragmatic force
+  - Maintain register and stylistic consistency
+  - Optimize clause boundaries for natural speech rhythm
+  - Consider information prominence and focus structure
+  - Respect genre conventions and communicative purpose
+
+sfl_rephrasing_user_prompt_template: |
+  Rephrase this text using SFL principles to optimize it for the specified prosodic pattern.
+
+  ORIGINAL TEXT:
+  %{text}
+
+  PROSODIC TARGET:
+  - Segment duration: %{segment_duration}s (≈%{target_words_per_segment} words per segment)
+  - Pause duration: %{pause_ms}ms between segments
+  - Speaking rate: %{rate}
+  - Pitch variation: ±%{pitch_variation}%%
+
+  CURRENT PROSODIC ANALYSIS:
+  %{prosodic_analysis}
+
+  SFL REPHRASING CONSTRAINTS:
+  %{aggressiveness_constraints}
+
+  SFL OPTIMIZATION STRATEGIES TO APPLY:
+  1. **Thematic Structure**: Reorganize Theme-Rheme to align with segment boundaries
+  2. **Information Flow**: Package Given-New information for natural pause points
+  3. **Clause Complexity**: Adjust hypotaxis/parataxis for target segment length
+  4. **Cohesion**: Use reference chains and cohesive devices to manage segment transitions
+  5. **Transitivity**: Modify process-participant structures if needed for rhythm
+  6. **Mood/Modality**: Preserve interpersonal meaning while optimizing structure
+
+  REQUIREMENTS:
+  - Preserve all semantic content and communicative function
+  - Maintain original register, style, and interpersonal relationships
+  - Optimize clause boundaries for %{pause_ms}ms pauses
+  - Target %{target_words_per_segment} words per prosodic segment
+  - Ensure smooth information flow across segment boundaries
+  - Return ONLY the rephrased text, no explanations or markup

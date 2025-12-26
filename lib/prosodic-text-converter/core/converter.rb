@@ -87,7 +87,8 @@ module ProsodicTextConverter
         start_time = Time.now
 
         # Analyze text structure with timeout
-        text_analysis = Timeout.timeout(30) do
+        timeout = @config ? @config.analysis_timeout : 30
+        text_analysis = Timeout.timeout(timeout) do
           @analyzer.analyze(text)
         end
         logger.debug("Text analyzed: #{text_analysis[:sentence_count]} sentences")
@@ -115,7 +116,8 @@ module ProsodicTextConverter
         end
 
         # Convert with LLM and timeout (pass rich text analysis and prosodic context)
-        ssml_output = Timeout.timeout(120) do
+        timeout = @config ? @config.llm_timeout : 120
+        ssml_output = Timeout.timeout(timeout) do
           @converter.convert_text_with_analysis(text_analysis, @pattern)
         end
         logger.debug('LLM conversion completed')
@@ -176,13 +178,15 @@ module ProsodicTextConverter
         start_time = Time.now
 
         # Generate spectrogram with timeout
-        spectrogram_result = Timeout.timeout(60) do
+        timeout = @config ? @config.analysis_timeout : 60
+        spectrogram_result = Timeout.timeout(timeout) do
           @spectrogram_generator.generate(audio_file, output_dir: output_dir)
         end
         logger.debug("Spectrogram generated: #{spectrogram_result[:spectrogram_file]}")
 
         # Analyze spectrogram for prosodic patterns with timeout
-        analysis_result = Timeout.timeout(120) do
+        timeout = @config ? @config.analysis_timeout : 120
+        analysis_result = Timeout.timeout(timeout) do
           @spectrogram_analyzer.analyze(spectrogram_result[:spectrogram_file], audio_file: audio_file)
         end
         logger.debug('Audio analysis completed')

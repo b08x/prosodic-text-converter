@@ -265,7 +265,8 @@ module ProsodicTextConverter
       logger.debug("Executing LLM rewrite with #{prompts[:strategy]} strategy")
 
       # Make LLM request for rewriting
-      response = Timeout.timeout(options[:timeout]) do
+      timeout = @config ? @config.rephrasing_timeout : (options[:timeout] || 120)
+      response = Timeout.timeout(timeout) do
         full_prompt = "#{prompts[:system]}\n\n#{prompts[:user]}"
         @llm_converter.instance_variable_get(:@client).with_model(@llm_converter.model).with_temperature(0.4).ask(full_prompt)
       end
@@ -525,7 +526,7 @@ module ProsodicTextConverter
 
     # Generate prompts for different rewriting strategies
 
-    def build_pattern_informed_system_prompt(strategy, guidance)
+    def build_pattern_informed_system_prompt(strategy, _guidance = nil)
       base_prompt = <<~SYSTEM
         You are an expert in speech pattern analysis and text rewriting for optimal prosodic matching.
         Your task is to rewrite text to better match specific speech patterns extracted from audio analysis
@@ -818,7 +819,7 @@ module ProsodicTextConverter
       { system: system_prompt, user: user_prompt, strategy: 'refinement' }
     end
 
-    def build_refinement_targets(needs, guidance)
+    def build_refinement_targets(needs, _guidance)
       targets = []
 
       targets << '- Improve rhythmic flow and timing' if needs.include?('rhythm_refinement')
@@ -851,7 +852,7 @@ module ProsodicTextConverter
       (avg_length - target_length).abs < 2
     end
 
-    def stress_optimized?(analysis, stress_guidance)
+    def stress_optimized?(_analysis, _stress_guidance)
       # Simplified stress assessment
       true # Placeholder - would analyze stress distribution
     end
@@ -875,13 +876,13 @@ module ProsodicTextConverter
 
     # Alignment assessment methods
 
-    def assess_strategy_alignment(analysis, strategy)
+    def assess_strategy_alignment(analysis, target_strategy)
       # Assess how well the rewritten text aligns with the target strategy
-      case strategy[:primary_focus]
+      case target_strategy[:primary_focus]
       when 'rhythm'
-        assess_rhythm_alignment(analysis, strategy)
+        assess_rhythm_alignment(analysis, target_strategy)
       when 'stress'
-        assess_stress_alignment(analysis, strategy)
+        assess_stress_alignment(analysis, target_strategy)
       when 'intonation'
         assess_intonation_alignment(analysis, strategy)
       else
@@ -903,14 +904,14 @@ module ProsodicTextConverter
       [1.0 - (variance / 5.0), 0.0].max
     end
 
-    def assess_stress_alignment(analysis, stress_guidance)
+    def assess_stress_alignment(_analysis, stress_guidance)
       return 0.5 unless stress_guidance
 
       # Placeholder stress alignment assessment
       0.7
     end
 
-    def assess_intonation_alignment(analysis, intonation_guidance)
+    def assess_intonation_alignment(_analysis, intonation_guidance)
       return 0.5 unless intonation_guidance[:available]
 
       # Placeholder intonation alignment assessment

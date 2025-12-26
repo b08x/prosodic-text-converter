@@ -36,6 +36,7 @@ module ProsodicTextConverter
       @config.append_path(@config_dir.to_s) if @config_dir.exist?
 
       load_defaults
+      load_prompts
       load_environment_variables
     end
 
@@ -105,6 +106,20 @@ module ProsodicTextConverter
     # @return [Boolean] true if verbose mode
     def verbose?
       get(:verbose, false)
+    end
+
+    # Get LLM timeout
+    #
+    # @return [Integer] timeout in seconds
+    def llm_timeout
+      get(:llm_timeout, 30)
+    end
+
+    # Get analysis timeout
+    #
+    # @return [Integer] timeout in seconds
+    def analysis_timeout
+      get(:analysis_timeout, 60)
     end
 
     # Check if analyze-only mode is enabled
@@ -313,6 +328,14 @@ module ProsodicTextConverter
       end
     end
 
+    # Get a prompt template from the configuration
+    #
+    # @param key [Symbol, String] prompt key
+    # @return [String, nil] prompt template
+    def prompt(key)
+      get(key)
+    end
+
     private
 
     # Get default configuration directory
@@ -340,6 +363,14 @@ module ProsodicTextConverter
         @config.set(:spectrogram_dir, value: './spectrograms')
         @config.set(:verbose, value: false)
       end
+    end
+
+    # Load prompts from prompts.yml file
+    #
+    # @return [void]
+    def load_prompts
+      prompts_file = @config_dir + 'prompts.yml'
+      @config.read(prompts_file.to_s) if prompts_file.exist?
     end
 
     # Load environment variables with PTC_ prefix

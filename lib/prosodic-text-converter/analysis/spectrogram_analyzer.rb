@@ -36,7 +36,7 @@ module ProsodicTextConverter
       raise "Spectrogram file not found: #{spectrogram_file}" unless File.exist?(spectrogram_file)
 
       # Get the original audio file path - use provided path or derive from spectrogram filename
-      audio_file = audio_file || derive_audio_file_path(spectrogram_file)
+      audio_file ||= derive_audio_file_path(spectrogram_file)
 
       image = MiniMagick::Image.open(spectrogram_file)
 
@@ -246,22 +246,40 @@ module ProsodicTextConverter
       Math.sqrt(variance) / mean_tempo # Coefficient of variation
     end
 
-    def extract_energy_profile(_image, width, height)
-      # Simplified energy extraction - sample middle frequencies
+    def extract_energy_profile(image, width, height)
+      # Extract energy profile from actual pixel data
+      # Sample middle frequencies (speech range)
       energy_profile = []
-      sample_region = (height * 0.2).to_i..(height * 0.8).to_i
+      sample_region_start = (height * 0.2).to_i
+      sample_region_end = (height * 0.8).to_i
 
-      (0...width).step(width / 100).each do |_x|
-        total_energy = 0
+      # Use get_pixels for efficient multi-pixel access
+      # This returns a 3D array: [y][x][rgb]
+      all_pixels = image.get_pixels
+
+      # Determine sampling step to avoid processing every single pixel horizontally
+      # We target about 100 samples across the width for the profile
+      step = (width / 100.0).ceil
+      step = 1 if step < 1
+
+      (0...width).step(step).each do |x|
+        total_intensity = 0
         sample_count = 0
 
-        sample_region.each do |_y|
-          # Get pixel intensity (simplified - would need actual pixel access in real implementation)
-          total_energy += 128 # Placeholder - represents average energy
+        (sample_region_start..sample_region_end).each do |y|
+          # Get pixel intensity (0-255)
+          # In SoX spectrograms with -m (monochrome), R=G=B represents the intensity
+          # High intensity (white) usually means low energy in these spectrograms
+          # Dark/black means high energy
+          pixel = all_pixels[y][x]
+          intensity = pixel ? pixel[0] : 255
+
+          # Inverse intensity: 255 (white) -> 0 energy, 0 (black) -> 255 energy
+          total_intensity += (255 - intensity)
           sample_count += 1
         end
 
-        energy_profile << total_energy / sample_count.to_f
+        energy_profile << (total_intensity / sample_count.to_f)
       end
 
       energy_profile

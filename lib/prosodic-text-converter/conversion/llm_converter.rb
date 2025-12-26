@@ -57,6 +57,7 @@ module ProsodicTextConverter
       @model = model
       @config = config
       @options = options
+      @logger = options[:logger] if options[:logger]
 
       begin
         logger.info("Initializing LLM converter with #{@provider}:#{@model}")
@@ -186,8 +187,9 @@ module ProsodicTextConverter
         logger.debug("Sending request to #{@provider}:#{@model}")
 
         # Make LLM request with timeout and retries
+        llm_timeout = @config ? @config.llm_timeout : 90
         response = with_retries(max_attempts: 3) do
-          Timeout.timeout(90) do # 90 second timeout for LLM
+          Timeout.timeout(llm_timeout) do # Use configurable timeout
             # Combine system and user prompts for simplicity
             full_prompt = "#{system_prompt}\n\n#{user_prompt}"
             @client.with_model(@model).with_temperature(0.3).ask(full_prompt)
@@ -236,8 +238,9 @@ module ProsodicTextConverter
         logger.debug("Sending request to #{@provider}:#{@model}")
 
         # Make LLM request with timeout and retries
+        llm_timeout = @config ? @config.llm_timeout : 90
         response = with_retries(max_attempts: 3) do
-          Timeout.timeout(90) do # 90 second timeout for LLM
+          Timeout.timeout(llm_timeout) do # Use configurable timeout
             @client.chat(
               model: @model,
               messages: [
@@ -414,6 +417,8 @@ module ProsodicTextConverter
     #
     # @return [String] system prompt
     def build_system_prompt
+      return @config.prompt(:system_prompt) if @config&.prompt(:system_prompt)
+
       <<~SYSTEM
         You are an expert in speech synthesis and prosodic text formatting.#{' '}
         Your task is to convert regular text into SSML format that matches specific prosodic patterns.
@@ -434,6 +439,20 @@ module ProsodicTextConverter
     # @param chunks [Array<String>] text chunks
     # @return [String] conversion prompt
     def build_conversion_prompt(text, pattern, chunks)
+      template = @config&.prompt(:conversion_prompt_template)
+      if template
+        return format(template, {
+                        segment_duration: pattern.segment_duration,
+                        words_per_segment: optimal_words_per_chunk(pattern),
+                        pause_ms: (pattern.pause_duration * 1000).to_i,
+                        pitch_variation: pattern.pitch_variation,
+                        rate: pattern.rate,
+                        text: text,
+                        chunks: chunks.join(' | '),
+                        chunk_count: chunks.length
+                      })
+      end
+
       <<~PROMPT
         Convert this text to match the specified prosodic pattern for text-to-speech synthesis.
 
@@ -471,9 +490,7 @@ module ProsodicTextConverter
     # @param pattern [ProsodicPattern] prosodic pattern
     # @return [String] conversion prompt
     def build_analysis_conversion_prompt(text_analysis, pattern)
-      text = text_analysis[:original_text]
       sentences = text_analysis[:sentences]
-      words_per_segment = optimal_words_per_chunk(pattern)
 
       # Build sentence analysis summary
       sentence_summary = sentences.map do |sent|
@@ -500,7 +517,23 @@ module ProsodicTextConverter
     # @param sentence_summary [String] sentence analysis summary
     # @return [String] prose-optimized conversion prompt
     def build_prose_conversion_prompt(text_analysis, pattern, sentence_summary)
-      text = text_analysis[:original_text]
+      template = @config&.prompt(:prose_conversion_prompt_template)
+      if template
+        sentences = text_analysis[:sentences]
+        return format(template, {
+                        segment_duration: pattern.segment_duration,
+                        words_per_segment: optimal_words_per_chunk(pattern),
+                        pause_ms: (pattern.pause_duration * 1000).to_i,
+                        pitch_variation: pattern.pitch_variation,
+                        rate: pattern.rate,
+                        text: text_analysis[:original_text],
+                        language: text_analysis[:language],
+                        sentence_count: text_analysis[:sentence_count],
+                        total_syllables: sentences.sum { |s| s[:words].sum { |w| w[:syllable_count] } },
+                        sentence_summary: sentence_summary
+                      })
+      end
+
       sentences = text_analysis[:sentences]
       words_per_segment = optimal_words_per_chunk(pattern)
 
@@ -515,7 +548,7 @@ module ProsodicTextConverter
         - Speaking rate: #{pattern.rate}
 
         ORIGINAL TEXT:
-        #{text}
+        #{text_analysis[:original_text]}
 
         LINGUISTIC ANALYSIS:
         - Language: #{text_analysis[:language]}
@@ -556,6 +589,21 @@ module ProsodicTextConverter
     # @param sentence_summary [String] sentence analysis summary
     # @return [String] standard conversion prompt
     def build_standard_conversion_prompt(text_analysis, pattern, sentence_summary)
+      template = @config&.prompt(:standard_conversion_prompt_template)
+      if template
+        return format(template, {
+                        segment_duration: pattern.segment_duration,
+                        words_per_segment: optimal_words_per_chunk(pattern),
+                        pause_ms: (pattern.pause_duration * 1000).to_i,
+                        pitch_variation: pattern.pitch_variation,
+                        rate: pattern.rate,
+                        text: text_analysis[:original_text],
+                        language: text_analysis[:language],
+                        sentence_count: text_analysis[:sentence_count],
+                        sentence_summary: sentence_summary
+                      })
+      end
+
       text = text_analysis[:original_text]
 
       <<~PROMPT
@@ -615,6 +663,8 @@ module ProsodicTextConverter
     #
     # @return [String] system prompt incorporating SFL principles
     def build_sfl_rephrasing_system_prompt
+      return @config.prompt(:sfl_rephrasing_system_prompt) if @config&.prompt(:sfl_rephrasing_system_prompt)
+
       <<~SYSTEM
         You are an expert in Systemic Functional Linguistics (SFL) and prosodic text optimization for speech synthesis.
         Your task is to rephrase text to better match specific prosodic patterns while preserving meaning through SFL principles.
@@ -649,6 +699,21 @@ module ProsodicTextConverter
     # @param aggressiveness [String] rephrasing intensity level
     # @return [String] user prompt with SFL analysis and constraints
     def build_sfl_rephrasing_user_prompt(text_analysis, pattern, aggressiveness)
+      template = @config&.prompt(:sfl_rephrasing_user_prompt_template)
+      if template
+        target_words = optimal_words_per_chunk(pattern)
+        return format(template, {
+                        text: text_analysis[:original_text],
+                        segment_duration: pattern.segment_duration,
+                        target_words_per_segment: target_words,
+                        pause_ms: (pattern.pause_duration * 1000).to_i,
+                        rate: pattern.rate,
+                        pitch_variation: pattern.pitch_variation,
+                        prosodic_analysis: analyze_prosodic_challenges(text_analysis[:sentences], pattern),
+                        aggressiveness_constraints: get_aggressiveness_constraints(aggressiveness)
+                      })
+      end
+
       text = text_analysis[:original_text]
       sentences = text_analysis[:sentences]
       target_words_per_segment = optimal_words_per_chunk(pattern)
@@ -707,6 +772,19 @@ module ProsodicTextConverter
         SFL-optimized: "The company announced quarterly results. These results exceeded expectations significantly."
         (Splits long clause at natural information boundary for better prosodic segmentation)
       PROMPT
+    end
+
+    def get_aggressiveness_constraints(aggressiveness)
+      case aggressiveness
+      when 'conservative'
+        'Minimal changes: Only adjust clause boundaries and add/remove short function words'
+      when 'medium'
+        'Moderate changes: Reorganize information structure, adjust clause combining, use cohesive devices'
+      when 'aggressive'
+        'Significant changes: Complete thematic restructuring, transitivity changes, nominalization/de-nominalization'
+      else
+        'Moderate changes: Reorganize information structure, adjust clause combining, use cohesive devices'
+      end
     end
 
     # Analyze prosodic challenges in current text structure
@@ -851,7 +929,6 @@ module ProsodicTextConverter
     # @param pattern [ProsodicPattern] prosodic pattern
     # @return [String] conversion prompt for v3 models
     def build_elevenlabs_v3_conversion_prompt(text_analysis, pattern)
-      text = text_analysis[:original_text]
       sentences = text_analysis[:sentences]
 
       # Build sentence analysis summary
@@ -1037,7 +1114,6 @@ module ProsodicTextConverter
     # @param pattern [ProsodicPattern] prosodic pattern
     # @return [String] conversion prompt for phoneme-enhanced models
     def build_elevenlabs_phoneme_conversion_prompt(text_analysis, pattern)
-      text = text_analysis[:original_text]
       sentences = text_analysis[:sentences]
 
       # Build sentence analysis summary
