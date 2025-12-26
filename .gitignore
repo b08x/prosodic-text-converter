@@ -5,3 +5,7 @@ docs/Lingua
 /.yardoc/
 .rspec_status
 /log/
+**/output/
+**/tmp/
+.code-packager-csv-config
+*.mp3

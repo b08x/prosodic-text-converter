@@ -41,7 +41,7 @@ module ProsodicTextConverter
       @plugin = plugin
       @step_size = step_size
       @block_size = block_size
-      @transform_dir = File.join(File.dirname(__FILE__), '..', '..', '..', 'transforms')
+      @transform_dir = File.join(File.dirname(__FILE__), '..', '..', 'vamp', 'transforms')
 
       begin
         logger.info("Initializing Sonic Annotator analyzer (#{@plugin})")
@@ -184,7 +184,7 @@ module ProsodicTextConverter
       # Set VAMP_PATH to system directories or environment variable
       @vamp_path = ENV['VAMP_PATH'] || '/usr/local/share/vamp:/usr/lib/vamp'
       ENV['VAMP_PATH'] = @vamp_path
-      
+
       # Check for required Vamp plugins
       check_vamp_plugins
     rescue Timeout::Error
