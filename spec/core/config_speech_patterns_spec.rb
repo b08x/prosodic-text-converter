@@ -11,10 +11,10 @@ RSpec.describe ProsodicTextConverter::Config, 'Speech Pattern Configuration' do
   before do
     # Create test config directory
     FileUtils.mkdir_p(config_dir) unless Dir.exist?(config_dir)
-    
+
     # Create test config file with speech pattern options
     File.write(test_config_file, test_config_yaml)
-    
+
     # Clear environment variables
     clear_speech_pattern_env_vars
   end
@@ -22,7 +22,7 @@ RSpec.describe ProsodicTextConverter::Config, 'Speech Pattern Configuration' do
   after do
     # Clean up test files
     FileUtils.rm_rf(config_dir) if Dir.exist?(config_dir)
-    
+
     # Clear environment variables
     clear_speech_pattern_env_vars
   end
@@ -96,8 +96,8 @@ RSpec.describe ProsodicTextConverter::Config, 'Speech Pattern Configuration' do
       end
 
       it 'accepts valid strategies' do
-        valid_strategies = ['rhythm', 'stress', 'intonation', 'hybrid', 'comprehensive']
-        
+        valid_strategies = %w[rhythm stress intonation hybrid comprehensive]
+
         valid_strategies.each do |strategy|
           write_config_with(rewrite_strategy: strategy)
           test_config = described_class.new(config_dir: config_dir)
@@ -118,8 +118,8 @@ RSpec.describe ProsodicTextConverter::Config, 'Speech Pattern Configuration' do
       end
 
       it 'accepts valid aggressiveness levels' do
-        valid_levels = ['conservative', 'medium', 'aggressive']
-        
+        valid_levels = %w[conservative medium aggressive]
+
         valid_levels.each do |level|
           write_config_with(pattern_rewrite_aggressiveness: level)
           test_config = described_class.new(config_dir: config_dir)
@@ -278,7 +278,7 @@ RSpec.describe ProsodicTextConverter::Config, 'Speech Pattern Configuration' do
           stress_detection_threshold: 0.8,
           intonation_smoothing: 0.4
         )
-        
+
         test_config = described_class.new(config_dir: config_dir)
         options = test_config.speech_pattern_extractor_options
 
@@ -320,7 +320,7 @@ RSpec.describe ProsodicTextConverter::Config, 'Speech Pattern Configuration' do
           iterative_pattern_refinement: false,
           pattern_analysis_timeout: 180
         )
-        
+
         test_config = described_class.new(config_dir: config_dir)
         options = test_config.speech_pattern_rewriter_options
 
@@ -345,9 +345,9 @@ RSpec.describe ProsodicTextConverter::Config, 'Speech Pattern Configuration' do
         '--rhythm-sensitivity=0.8',
         '--max-rewrite-iterations=5'
       ]
-      
+
       test_config = described_class.from_cli_args(args, config_dir: config_dir)
-      
+
       expect(test_config.speech_pattern_analysis_enabled?).to be(true)
       expect(test_config.speech_pattern_rewriting_enabled?).to be(true)
       expect(test_config.rewrite_strategy).to eq('rhythm')
@@ -366,9 +366,9 @@ RSpec.describe ProsodicTextConverter::Config, 'Speech Pattern Configuration' do
         '--disable-detailed-analysis',
         '--disable-iterative-refinement'
       ]
-      
+
       test_config = described_class.from_cli_args(args, config_dir: config_dir)
-      
+
       expect(test_config.speech_pattern_analysis_enabled?).to be(false)
       expect(test_config.speech_pattern_rewriting_enabled?).to be(false)
       expect(test_config.emotional_detection_enabled?).to be(false)
@@ -382,9 +382,9 @@ RSpec.describe ProsodicTextConverter::Config, 'Speech Pattern Configuration' do
         '--stress-threshold=0.7',
         '--intonation-smoothing=0.4'
       ]
-      
+
       test_config = described_class.from_cli_args(args, config_dir: config_dir)
-      
+
       expect(test_config.pattern_analysis_timeout).to eq(240)
       expect(test_config.stress_detection_threshold).to eq(0.7)
       expect(test_config.intonation_smoothing).to eq(0.4)
@@ -398,13 +398,13 @@ RSpec.describe ProsodicTextConverter::Config, 'Speech Pattern Configuration' do
         rewrite_strategy: 'rhythm',
         pattern_meaning_threshold: 0.7
       )
-      
+
       ENV['PTC_ENABLE_SPEECH_PATTERN_ANALYSIS'] = 'true'
       ENV['PTC_REWRITE_STRATEGY'] = 'stress'
       ENV['PTC_PATTERN_MEANING_THRESHOLD'] = '0.9'
-      
+
       test_config = described_class.new(config_dir: config_dir)
-      
+
       expect(test_config.speech_pattern_analysis_enabled?).to be(true)
       expect(test_config.rewrite_strategy).to eq('stress')
       expect(test_config.pattern_meaning_threshold).to eq(0.9)
@@ -413,10 +413,10 @@ RSpec.describe ProsodicTextConverter::Config, 'Speech Pattern Configuration' do
     it 'prioritizes CLI args over environment variables' do
       ENV['PTC_ENABLE_SPEECH_PATTERN_ANALYSIS'] = 'false'
       ENV['PTC_REWRITE_STRATEGY'] = 'rhythm'
-      
+
       args = ['--enable-speech-patterns', '--rewrite-strategy=intonation']
       test_config = described_class.from_cli_args(args, config_dir: config_dir)
-      
+
       expect(test_config.speech_pattern_analysis_enabled?).to be(true)
       expect(test_config.rewrite_strategy).to eq('intonation')
     end
@@ -427,7 +427,7 @@ RSpec.describe ProsodicTextConverter::Config, 'Speech Pattern Configuration' do
       # Test with YAML config
       write_config_with(rhythm_sensitivity: 'invalid')
       test_config = described_class.new(config_dir: config_dir)
-      
+
       # Should fall back to default
       expect(test_config.rhythm_sensitivity).to eq(0.7)
     end
@@ -435,7 +435,7 @@ RSpec.describe ProsodicTextConverter::Config, 'Speech Pattern Configuration' do
     it 'handles missing config file gracefully' do
       FileUtils.rm_f(test_config_file)
       test_config = described_class.new(config_dir: config_dir)
-      
+
       # Should use defaults
       expect(test_config.speech_pattern_analysis_enabled?).to be(false)
       expect(test_config.rewrite_strategy).to eq('hybrid')
@@ -449,9 +449,9 @@ RSpec.describe ProsodicTextConverter::Config, 'Speech Pattern Configuration' do
     <<~YAML
       # Test configuration for speech patterns
       provider: "gemini"
-      model: "gemini-2.0-flash"
+      model: "gemini-2.5-flash"
       pitch_backend: "aubio"
-      
+
       # Speech Pattern Configuration
       enable_speech_pattern_analysis: false
       speech_pattern_rewriting: false
@@ -472,10 +472,10 @@ RSpec.describe ProsodicTextConverter::Config, 'Speech Pattern Configuration' do
   def write_config_with(options)
     config_hash = {
       'provider' => 'gemini',
-      'model' => 'gemini-2.0-flash',
+      'model' => 'gemini-2.5-flash',
       'pitch_backend' => 'aubio'
     }.merge(options.transform_keys(&:to_s))
-    
+
     File.write(test_config_file, config_hash.to_yaml)
   end
 

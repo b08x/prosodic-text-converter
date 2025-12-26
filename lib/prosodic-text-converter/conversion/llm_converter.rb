@@ -15,7 +15,7 @@ module ProsodicTextConverter
       config.anthropic_api_key = ENV.fetch('ANTHROPIC_API_KEY', nil)
       config.openrouter_api_key = ENV.fetch('OPENROUTER_API_KEY', nil)
       config.openai_api_base = ENV.fetch('OPENAI_API_BASE', nil)
-      config.default_model = 'gemini-2.0-flash'
+      config.default_model = 'gemini-2.5-flash'
       config.default_embedding_model = 'text-embedding-004'
       config.default_image_model = 'imagen-3.0-generate-002'
       config.request_timeout = 120
@@ -34,11 +34,11 @@ module ProsodicTextConverter
   # Language model interface using RubyLLM for text-to-SSML conversion
   #
   # @example Basic usage
-  #   converter = LLMConverter.new(provider: :gemini, model: 'gemini-2.0-flash')
+  #   converter = LLMConverter.new(provider: :gemini, model: 'gemini-2.5-flash')
   #   ssml = converter.convert_text("Hello world", pattern, chunks)
   class LLMConverter
     include Logging
-    
+
     # @return [Symbol] LLM provider
     attr_reader :provider
 
@@ -52,7 +52,7 @@ module ProsodicTextConverter
     # @param config [Config] configuration object for ElevenLabs options
     # @param options [Hash] additional options for LLM client
     # @raise [RuntimeError] if initialization fails
-    def initialize(provider: :gemini, model: 'gemini-2.0-flash', config: nil, **options)
+    def initialize(provider: :gemini, model: 'google/gemini-2.6-flash', config: nil, **options)
       @provider = provider
       @model = model
       @config = config
@@ -66,7 +66,7 @@ module ProsodicTextConverter
 
         # Initialize client with timeout
         @client = Timeout.timeout(30) do
-          RubyLLM.chat(provider: @provider, **@options)
+          RubyLLM.chat(model: @model, **@options)
         end
 
         logger.info('LLM converter initialized successfully')
@@ -95,11 +95,11 @@ module ProsodicTextConverter
     # @raise [RuntimeError] if rephrasing fails
     def rephrase_for_prosody(text_analysis, pattern, options = {})
       validate_analysis_inputs(text_analysis, pattern)
-      
+
       aggressiveness = options[:aggressiveness] || 'medium'
       meaning_threshold = options[:meaning_threshold] || 0.8
       timeout = options[:timeout] || 45
-      
+
       begin
         original_text = text_analysis[:original_text]
         logger.info("Rephrasing text for prosodic fit using SFL principles (#{original_text.length} chars, #{aggressiveness} aggressiveness)")
@@ -121,10 +121,10 @@ module ProsodicTextConverter
 
         # Extract rephrased text
         rephrased_text = extract_response_content(response)
-        
+
         # Validate meaning preservation (basic length and keyword check for now)
         unless validate_meaning_preservation(original_text, rephrased_text, meaning_threshold)
-          logger.warn("Rephrased text failed meaning preservation check, using original")
+          logger.warn('Rephrased text failed meaning preservation check, using original')
           return text_analysis
         end
 
@@ -137,12 +137,12 @@ module ProsodicTextConverter
         require_relative '../text/text_analyzer'
         analyzer = TextAnalyzer.new(language: text_analysis[:language])
         updated_analysis = analyzer.analyze(rephrased_text)
-        
+
         # Preserve original text reference for comparison
         updated_analysis[:original_text_before_rephrasing] = original_text
         updated_analysis[:rephrasing_applied] = true
         updated_analysis[:rephrasing_time] = rephrasing_time
-        
+
         updated_analysis
       rescue Timeout::Error
         error_msg = "Text rephrasing timed out after #{timeout} seconds"
@@ -552,7 +552,7 @@ module ProsodicTextConverter
     # Build conversion prompt for standard segmentation patterns (shorter segments)
     #
     # @param text_analysis [Hash] structured text analysis
-    # @param pattern [ProsodicPattern] prosodic pattern  
+    # @param pattern [ProsodicPattern] prosodic pattern
     # @param sentence_summary [String] sentence analysis summary
     # @return [String] standard conversion prompt
     def build_standard_conversion_prompt(text_analysis, pattern, sentence_summary)
@@ -574,7 +574,7 @@ module ProsodicTextConverter
         LINGUISTIC ANALYSIS:
         - Language: #{text_analysis[:language]}
         - Total sentences: #{text_analysis[:sentence_count]}
-        
+
         #{sentence_summary}
 
         PROSODIC CONSIDERATIONS:
@@ -655,18 +655,18 @@ module ProsodicTextConverter
 
       # Analyze current prosodic challenges
       prosodic_analysis = analyze_prosodic_challenges(sentences, pattern)
-      
+
       # Set aggressiveness constraints
       aggressiveness_constraints = case aggressiveness
-      when 'conservative'
-        'Minimal changes: Only adjust clause boundaries and add/remove short function words'
-      when 'medium'  
-        'Moderate changes: Reorganize information structure, adjust clause combining, use cohesive devices'
-      when 'aggressive'
-        'Significant changes: Complete thematic restructuring, transitivity changes, nominalization/de-nominalization'
-      else
-        'Moderate changes: Reorganize information structure, adjust clause combining, use cohesive devices'
-      end
+                                   when 'conservative'
+                                     'Minimal changes: Only adjust clause boundaries and add/remove short function words'
+                                   when 'medium'
+                                     'Moderate changes: Reorganize information structure, adjust clause combining, use cohesive devices'
+                                   when 'aggressive'
+                                     'Significant changes: Complete thematic restructuring, transitivity changes, nominalization/de-nominalization'
+                                   else
+                                     'Moderate changes: Reorganize information structure, adjust clause combining, use cohesive devices'
+                                   end
 
       <<~PROMPT
         Rephrase this text using SFL principles to optimize it for the specified prosodic pattern.
@@ -720,7 +720,7 @@ module ProsodicTextConverter
 
       sentences.each_with_index do |sentence, idx|
         word_count = sentence[:word_count]
-        
+
         if word_count > target_words * 1.5
           challenges << "Sentence #{idx + 1}: #{word_count} words (too long, needs segmentation)"
         elsif word_count < target_words * 0.5
@@ -733,7 +733,7 @@ module ProsodicTextConverter
         end
       end
 
-      challenges.empty? ? "Text structure aligns well with prosodic targets" : challenges.join("\n")
+      challenges.empty? ? 'Text structure aligns well with prosodic targets' : challenges.join("\n")
     end
 
     # Validate meaning preservation between original and rephrased text
@@ -745,28 +745,29 @@ module ProsodicTextConverter
     def validate_meaning_preservation(original, rephrased, threshold)
       # Basic validation: length similarity and key content preservation
       # In a production system, this would use semantic similarity models
-      
+
       # Length check: rephrased text shouldn't be dramatically different in length
       length_ratio = [original.length, rephrased.length].min.to_f / [original.length, rephrased.length].max
-      return false if length_ratio < 0.5  # Too different in length
-      
+      return false if length_ratio < 0.5 # Too different in length
+
       # Word overlap check: should preserve most content words
       original_words = original.downcase.gsub(/[^\w\s]/, '').split
       rephrased_words = rephrased.downcase.gsub(/[^\w\s]/, '').split
-      
+
       # Filter out common function words
-      function_words = %w[the a an and or but in on at to for of with by from that this these those is are was were be been have has had do does did will would could should may might]
+      function_words = %w[the a an and or but in on at to for of with by from that this these those is are was were be
+                          been have has had do does did will would could should may might]
       original_content = original_words - function_words
       rephrased_content = rephrased_words - function_words
-      
+
       return true if original_content.empty? # Edge case
-      
+
       # Calculate content word overlap
       overlap = (original_content & rephrased_content).length
       content_preservation = overlap.to_f / original_content.length
-      
+
       logger.debug("Meaning preservation check: length_ratio=#{length_ratio.round(2)}, content_preservation=#{content_preservation.round(2)}")
-      
+
       content_preservation >= threshold
     end
 
@@ -903,10 +904,10 @@ module ProsodicTextConverter
         ELEVENLABS V3 AUDIO TAG GUIDANCE FOR PROSE:
         Use bracketed audio tags sparingly and naturally within longer segments:
         - [sighs], [exhales] for thoughtful moments
-        - [quietly], [whispers] for intimate passages  
+        - [quietly], [whispers] for intimate passages#{'  '}
         - [excited], [enthusiastic] for energetic content
         - [contemplative], [thoughtful] for reflective sections
-        
+
         PROSE FLOW REQUIREMENTS:
         1. **Minimize segmentation**: Combine multiple sentences into longer prosodic units
         2. **Natural boundaries only**: Break only at paragraph boundaries or major semantic shifts
@@ -967,7 +968,7 @@ module ProsodicTextConverter
         - [laughs], [sighs], [whispers] for vocal style
         - [sarcastic], [curious], [excited] for emotional tone
         - [starts laughing], [exhales], [mischievously] for dynamic expression
-        
+
         Examples of effective usage:
         - "Well, [sighs] I suppose that's one way to look at it."
         - "This is [excited] absolutely fantastic!"
@@ -1010,11 +1011,11 @@ module ProsodicTextConverter
         utilizing phoneme tags for precise pronunciation control.
 
         SSML Phoneme Tags:
-        For any words that might be mispronounced (like jargon, names, or loanwords), you must provide a phonetic 
+        For any words that might be mispronounced (like jargon, names, or loanwords), you must provide a phonetic#{' '}
         transcription using the SSML <phoneme> tag with the International Phonetic Alphabet (IPA).
-        
+
         The format must be: <phoneme alphabet="ipa" ph="...">word</phoneme>
-        
+
         Examples:
         - <phoneme alphabet="ipa" ph="ˈkjuːbərnɛtiːz">Kubernetes</phoneme>
         - <phoneme alphabet="ipa" ph="ˈliːdərʃɪp">leadership</phoneme>
@@ -1092,7 +1093,7 @@ module ProsodicTextConverter
         - Target words: proper names, technical terms, abbreviations, foreign words
         - Use International Phonetic Alphabet (IPA) notation
         - Apply sparingly to maintain prose flow
-        
+
         PROSE FLOW REQUIREMENTS:
         1. **Minimize segmentation**: Combine multiple sentences into longer prosodic units
         2. **Natural boundaries only**: Break only at paragraph boundaries or major semantic shifts
@@ -1153,7 +1154,7 @@ module ProsodicTextConverter
         - Use format: <phoneme alphabet="ipa" ph="...">word</phoneme>
         - Target words: proper names, technical terms, abbreviations, foreign words
         - Use International Phonetic Alphabet (IPA) notation
-        
+
         Examples of effective phoneme usage:
         - "The process uses <phoneme alphabet=\"ipa\" ph=\"ˈkjuːbərnɛtiːz\">Kubernetes</phoneme>."
         - "Dr. <phoneme alphabet=\"ipa\" ph=\"ˈsiːzər\">César</phoneme> will present today."

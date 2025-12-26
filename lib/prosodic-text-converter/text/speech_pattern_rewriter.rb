@@ -39,23 +39,23 @@ module ProsodicTextConverter
     # @option options [Boolean] :detailed_logging enable detailed rewriting logs
     # @option options [Integer] :max_iterations maximum rewrite iterations per sentence
     # @raise [RuntimeError] if initialization fails
-    def initialize(provider: :gemini, model: 'gemini-2.0-flash', config: nil, **options)
+    def initialize(provider: :gemini, model: 'gemini-2.5-flash', config: nil, **options)
       @config = config
       @options = default_options.merge(options)
-      
+
       begin
         logger.info("Initializing SpeechPatternRewriter with #{provider}:#{model}")
-        
+
         # Initialize LLM converter for text rewriting
         @llm_converter = LLMConverter.new(
           provider: provider,
           model: model,
           config: config
         )
-        
+
         # Initialize text analyzer for re-analysis
         @text_analyzer = TextAnalyzer.new(language: :en)
-        
+
         logger.info('SpeechPatternRewriter initialized successfully')
       rescue StandardError => e
         error_msg = "Failed to initialize SpeechPatternRewriter: #{e.message}"
@@ -77,10 +77,10 @@ module ProsodicTextConverter
     # @raise [RuntimeError] if rewriting fails
     def rewrite_text(text_analysis, rewrite_guidance, options = {})
       validate_rewrite_inputs(text_analysis, rewrite_guidance)
-      
+
       rewrite_options = @options.merge(options)
       strategy = rewrite_options[:strategy] || rewrite_guidance[:overall_strategy][:primary_focus]
-      
+
       begin
         original_text = text_analysis[:original_text]
         logger.info("Rewriting text using speech patterns (#{original_text.length} chars, strategy: #{strategy})")
@@ -88,17 +88,17 @@ module ProsodicTextConverter
 
         # Select rewriting strategy based on pattern analysis
         rewritten_result = case strategy.to_s
-                          when 'rhythm'
-                            rewrite_for_rhythm_patterns(text_analysis, rewrite_guidance, rewrite_options)
-                          when 'stress'
-                            rewrite_for_stress_patterns(text_analysis, rewrite_guidance, rewrite_options)
-                          when 'intonation'
-                            rewrite_for_intonation_patterns(text_analysis, rewrite_guidance, rewrite_options)
-                          when 'hybrid'
-                            rewrite_with_hybrid_strategy(text_analysis, rewrite_guidance, rewrite_options)
-                          else
-                            rewrite_with_comprehensive_strategy(text_analysis, rewrite_guidance, rewrite_options)
-                          end
+                           when 'rhythm'
+                             rewrite_for_rhythm_patterns(text_analysis, rewrite_guidance, rewrite_options)
+                           when 'stress'
+                             rewrite_for_stress_patterns(text_analysis, rewrite_guidance, rewrite_options)
+                           when 'intonation'
+                             rewrite_for_intonation_patterns(text_analysis, rewrite_guidance, rewrite_options)
+                           when 'hybrid'
+                             rewrite_with_hybrid_strategy(text_analysis, rewrite_guidance, rewrite_options)
+                           else
+                             rewrite_with_comprehensive_strategy(text_analysis, rewrite_guidance, rewrite_options)
+                           end
 
         # Apply iterative refinement if enabled
         if rewrite_options[:iterative_refinement]
@@ -106,11 +106,10 @@ module ProsodicTextConverter
         end
 
         # Validate meaning preservation
-        if rewrite_options[:preserve_meaning]
-          unless validate_meaning_preservation(original_text, rewritten_result[:rewritten_text], rewrite_options[:meaning_threshold])
-            logger.warn("Rewritten text failed meaning preservation check, reverting to original")
-            return create_fallback_result(text_analysis, rewrite_guidance)
-          end
+        if rewrite_options[:preserve_meaning] && !validate_meaning_preservation(original_text, rewritten_result[:rewritten_text],
+                                                                                rewrite_options[:meaning_threshold])
+          logger.warn('Rewritten text failed meaning preservation check, reverting to original')
+          return create_fallback_result(text_analysis, rewrite_guidance)
         end
 
         rewrite_time = Time.now - start_time
@@ -118,7 +117,6 @@ module ProsodicTextConverter
 
         # Enhance result with analysis metadata
         enhance_rewrite_result(rewritten_result, text_analysis, rewrite_guidance, rewrite_time, strategy)
-
       rescue StandardError => e
         error_msg = "Speech pattern rewriting failed: #{e.message}"
         logger.error(error_msg)
@@ -136,7 +134,7 @@ module ProsodicTextConverter
     def generate_pattern_informed_prompts(text_analysis, rewrite_guidance, strategy)
       system_prompt = build_pattern_informed_system_prompt(strategy, rewrite_guidance)
       user_prompt = build_pattern_informed_user_prompt(text_analysis, rewrite_guidance, strategy)
-      
+
       {
         system: system_prompt,
         user: user_prompt,
@@ -177,9 +175,9 @@ module ProsodicTextConverter
       end
 
       text = text_analysis[:original_text]
-      if text.nil? || text.strip.empty?
-        raise ArgumentError, 'Original text in analysis cannot be nil or empty'
-      end
+      return unless text.nil? || text.strip.empty?
+
+      raise ArgumentError, 'Original text in analysis cannot be nil or empty'
     end
 
     # Rewrite text focusing on rhythm patterns
@@ -189,11 +187,11 @@ module ProsodicTextConverter
     # @param options [Hash] rewrite options
     # @return [Hash] rewriting result
     def rewrite_for_rhythm_patterns(text_analysis, rewrite_guidance, options)
-      logger.debug("Applying rhythm-focused rewriting strategy")
-      
+      logger.debug('Applying rhythm-focused rewriting strategy')
+
       rhythm_guidance = rewrite_guidance[:rhythm_adjustments]
       prompts = generate_rhythm_focused_prompts(text_analysis, rhythm_guidance)
-      
+
       execute_llm_rewrite(prompts, options)
     end
 
@@ -204,11 +202,11 @@ module ProsodicTextConverter
     # @param options [Hash] rewrite options
     # @return [Hash] rewriting result
     def rewrite_for_stress_patterns(text_analysis, rewrite_guidance, options)
-      logger.debug("Applying stress-focused rewriting strategy")
-      
+      logger.debug('Applying stress-focused rewriting strategy')
+
       stress_guidance = rewrite_guidance[:stress_adjustments]
       prompts = generate_stress_focused_prompts(text_analysis, stress_guidance)
-      
+
       execute_llm_rewrite(prompts, options)
     end
 
@@ -219,15 +217,15 @@ module ProsodicTextConverter
     # @param options [Hash] rewrite options
     # @return [Hash] rewriting result
     def rewrite_for_intonation_patterns(text_analysis, rewrite_guidance, options)
-      logger.debug("Applying intonation-focused rewriting strategy")
-      
+      logger.debug('Applying intonation-focused rewriting strategy')
+
       intonation_guidance = rewrite_guidance[:intonation_guidance]
-      
+
       if intonation_guidance[:available]
         prompts = generate_intonation_focused_prompts(text_analysis, intonation_guidance)
         execute_llm_rewrite(prompts, options)
       else
-        logger.warn("Intonation guidance not available, falling back to rhythm strategy")
+        logger.warn('Intonation guidance not available, falling back to rhythm strategy')
         rewrite_for_rhythm_patterns(text_analysis, rewrite_guidance, options)
       end
     end
@@ -239,8 +237,8 @@ module ProsodicTextConverter
     # @param options [Hash] rewrite options
     # @return [Hash] rewriting result
     def rewrite_with_hybrid_strategy(text_analysis, rewrite_guidance, options)
-      logger.debug("Applying hybrid rewriting strategy")
-      
+      logger.debug('Applying hybrid rewriting strategy')
+
       prompts = generate_hybrid_prompts(text_analysis, rewrite_guidance)
       execute_llm_rewrite(prompts, options)
     end
@@ -252,8 +250,8 @@ module ProsodicTextConverter
     # @param options [Hash] rewrite options
     # @return [Hash] rewriting result
     def rewrite_with_comprehensive_strategy(text_analysis, rewrite_guidance, options)
-      logger.debug("Applying comprehensive rewriting strategy")
-      
+      logger.debug('Applying comprehensive rewriting strategy')
+
       prompts = generate_comprehensive_prompts(text_analysis, rewrite_guidance)
       execute_llm_rewrite(prompts, options)
     end
@@ -264,37 +262,34 @@ module ProsodicTextConverter
     # @param options [Hash] execution options
     # @return [Hash] rewriting result
     def execute_llm_rewrite(prompts, options)
-      begin
-        logger.debug("Executing LLM rewrite with #{prompts[:strategy]} strategy")
-        
-        # Make LLM request for rewriting
-        response = Timeout.timeout(options[:timeout]) do
-          full_prompt = "#{prompts[:system]}\n\n#{prompts[:user]}"
-          @llm_converter.instance_variable_get(:@client).with_model(@llm_converter.model).with_temperature(0.4).ask(full_prompt)
-        end
+      logger.debug("Executing LLM rewrite with #{prompts[:strategy]} strategy")
 
-        # Extract rewritten text
-        rewritten_text = extract_rewritten_text(response)
-        
-        # Re-analyze the rewritten text
-        rewritten_analysis = @text_analyzer.analyze(rewritten_text)
-        
-        {
-          rewritten_text: rewritten_text,
-          rewritten_analysis: rewritten_analysis,
-          prompts_used: prompts,
-          llm_response: response
-        }
-        
-      rescue Timeout::Error
-        error_msg = "LLM rewrite timed out after #{options[:timeout]} seconds"
-        logger.error(error_msg)
-        raise error_msg
-      rescue StandardError => e
-        error_msg = "LLM rewrite execution failed: #{e.message}"
-        logger.error(error_msg)
-        raise error_msg
+      # Make LLM request for rewriting
+      response = Timeout.timeout(options[:timeout]) do
+        full_prompt = "#{prompts[:system]}\n\n#{prompts[:user]}"
+        @llm_converter.instance_variable_get(:@client).with_model(@llm_converter.model).with_temperature(0.4).ask(full_prompt)
       end
+
+      # Extract rewritten text
+      rewritten_text = extract_rewritten_text(response)
+
+      # Re-analyze the rewritten text
+      rewritten_analysis = @text_analyzer.analyze(rewritten_text)
+
+      {
+        rewritten_text: rewritten_text,
+        rewritten_analysis: rewritten_analysis,
+        prompts_used: prompts,
+        llm_response: response
+      }
+    rescue Timeout::Error
+      error_msg = "LLM rewrite timed out after #{options[:timeout]} seconds"
+      logger.error(error_msg)
+      raise error_msg
+    rescue StandardError => e
+      error_msg = "LLM rewrite execution failed: #{e.message}"
+      logger.error(error_msg)
+      raise error_msg
     end
 
     # Apply iterative refinement to improve rewriting results
@@ -310,21 +305,21 @@ module ProsodicTextConverter
 
       while iteration <= max_iterations
         logger.debug("Applying iterative refinement iteration #{iteration}/#{max_iterations}")
-        
+
         # Analyze current result against guidance
         refinement_needed = assess_refinement_needs(current_result, rewrite_guidance)
-        
+
         if refinement_needed.empty?
           logger.debug("No further refinement needed after #{iteration - 1} iterations")
           break
         end
-        
+
         # Generate refinement prompts
         refinement_prompts = generate_refinement_prompts(current_result, refinement_needed, rewrite_guidance)
-        
+
         # Apply refinement
         refined_result = execute_llm_rewrite(refinement_prompts, options)
-        
+
         # Update current result if improvement detected
         if assess_improvement(current_result, refined_result, rewrite_guidance)
           current_result = refined_result
@@ -333,7 +328,7 @@ module ProsodicTextConverter
           logger.debug("No improvement detected in iteration #{iteration}, stopping refinement")
           break
         end
-        
+
         iteration += 1
       end
 
@@ -356,9 +351,7 @@ module ProsodicTextConverter
                   response.dig('content') || response.dig('message', 'content') || response.to_s
                 end
 
-      if content.nil? || content.strip.empty?
-        raise "No content found in LLM response: #{response.inspect}"
-      end
+      raise "No content found in LLM response: #{response.inspect}" if content.nil? || content.strip.empty?
 
       # Clean up any markdown formatting
       content = content.strip
@@ -374,32 +367,32 @@ module ProsodicTextConverter
     # @return [Boolean] true if meaning is preserved
     def validate_meaning_preservation(original, rewritten, threshold)
       # Enhanced meaning preservation check
-      
+
       # Length similarity check
       length_ratio = [original.length, rewritten.length].min.to_f / [original.length, rewritten.length].max
       return false if length_ratio < 0.4
-      
+
       # Content word preservation check
       original_words = extract_content_words(original)
       rewritten_words = extract_content_words(rewritten)
-      
+
       return true if original_words.empty?
-      
+
       # Calculate content overlap
       overlap = (original_words & rewritten_words).length
       content_preservation = overlap.to_f / original_words.length
-      
+
       # Structural similarity check
       structural_similarity = assess_structural_similarity(original, rewritten)
-      
+
       # Combined score
       combined_score = (content_preservation * 0.6) + (structural_similarity * 0.2) + (length_ratio * 0.2)
-      
+
       logger.debug("Meaning preservation: content=#{content_preservation.round(2)}, " \
                   "structure=#{structural_similarity.round(2)}, " \
                   "length=#{length_ratio.round(2)}, " \
                   "combined=#{combined_score.round(2)}")
-      
+
       combined_score >= threshold
     end
 
@@ -409,7 +402,8 @@ module ProsodicTextConverter
     # @return [Array<String>] content words
     def extract_content_words(text)
       words = text.downcase.gsub(/[^\w\s]/, '').split
-      function_words = %w[the a an and or but in on at to for of with by from that this these those is are was were be been have has had do does did will would could should may might can cannot]
+      function_words = %w[the a an and or but in on at to for of with by from that this these those is are was were be
+                          been have has had do does did will would could should may might can cannot]
       words - function_words
     end
 
@@ -422,15 +416,15 @@ module ProsodicTextConverter
       # Compare sentence structures
       sentences1 = text1.split(/[.!?]+/).map(&:strip).reject(&:empty?)
       sentences2 = text2.split(/[.!?]+/).map(&:strip).reject(&:empty?)
-      
+
       # Sentence count similarity
       count_similarity = [sentences1.length, sentences2.length].min.to_f / [sentences1.length, sentences2.length].max
-      
+
       # Average sentence length similarity
       avg_len1 = sentences1.map(&:length).sum / sentences1.length.to_f
       avg_len2 = sentences2.map(&:length).sum / sentences2.length.to_f
       length_similarity = [avg_len1, avg_len2].min / [avg_len1, avg_len2].max
-      
+
       (count_similarity + length_similarity) / 2.0
     end
 
@@ -459,15 +453,15 @@ module ProsodicTextConverter
     # @return [Hash] enhanced result
     def enhance_rewrite_result(result, text_analysis, rewrite_guidance, rewrite_time, strategy)
       result.merge({
-        original_text: text_analysis[:original_text],
-        original_analysis: text_analysis,
-        rewrite_applied: true,
-        strategy_used: strategy,
-        guidance_applied: rewrite_guidance[:overall_strategy],
-        processing_time: rewrite_time,
-        changes_summary: analyze_changes(text_analysis[:original_text], result[:rewritten_text]),
-        pattern_alignment: assess_pattern_alignment(result, rewrite_guidance)
-      })
+                     original_text: text_analysis[:original_text],
+                     original_analysis: text_analysis,
+                     rewrite_applied: true,
+                     strategy_used: strategy,
+                     guidance_applied: rewrite_guidance[:overall_strategy],
+                     processing_time: rewrite_time,
+                     changes_summary: analyze_changes(text_analysis[:original_text], result[:rewritten_text]),
+                     pattern_alignment: assess_pattern_alignment(result, rewrite_guidance)
+                   })
     end
 
     # Analyze changes between original and rewritten text
@@ -491,28 +485,24 @@ module ProsodicTextConverter
     # @return [Array<String>] list of structural changes
     def identify_structural_changes(original, rewritten)
       changes = []
-      
+
       orig_sentences = original.split(/[.!?]+/).map(&:strip).reject(&:empty?)
       rewr_sentences = rewritten.split(/[.!?]+/).map(&:strip).reject(&:empty?)
-      
+
       if rewr_sentences.length > orig_sentences.length
         changes << 'sentence_splitting'
       elsif rewr_sentences.length < orig_sentences.length
         changes << 'sentence_combining'
       end
-      
+
       # Check for word order changes (simplified)
       orig_words = original.downcase.gsub(/[^\w\s]/, '').split
       rewr_words = rewritten.downcase.gsub(/[^\w\s]/, '').split
-      
-      if (orig_words - rewr_words).any?
-        changes << 'word_substitution'
-      end
-      
-      if orig_words.length != rewr_words.length
-        changes << 'word_count_adjustment'
-      end
-      
+
+      changes << 'word_substitution' if (orig_words - rewr_words).any?
+
+      changes << 'word_count_adjustment' if orig_words.length != rewr_words.length
+
       changes
     end
 
@@ -524,7 +514,7 @@ module ProsodicTextConverter
     def assess_pattern_alignment(result, guidance)
       rewritten_analysis = result[:rewritten_analysis]
       target_strategy = guidance[:overall_strategy]
-      
+
       {
         strategy_alignment: assess_strategy_alignment(rewritten_analysis, target_strategy),
         rhythm_alignment: assess_rhythm_alignment(rewritten_analysis, guidance[:rhythm_adjustments]),
@@ -534,7 +524,7 @@ module ProsodicTextConverter
     end
 
     # Generate prompts for different rewriting strategies
-    
+
     def build_pattern_informed_system_prompt(strategy, guidance)
       base_prompt = <<~SYSTEM
         You are an expert in speech pattern analysis and text rewriting for optimal prosodic matching.
@@ -550,17 +540,17 @@ module ProsodicTextConverter
       SYSTEM
 
       strategy_specific = case strategy.to_s
-                         when 'rhythm'
-                           "\nFocus: Optimize text for rhythm and timing patterns extracted from speech analysis."
-                         when 'stress'
-                           "\nFocus: Adjust text structure to match stress patterns and emphasis."
-                         when 'intonation'
-                           "\nFocus: Modify text to support target intonation contours and pitch patterns."
-                         when 'hybrid'
-                           "\nFocus: Balance rhythm, stress, and intonation considerations."
-                         else
-                           "\nFocus: Comprehensive optimization for all detected speech patterns."
-                         end
+                          when 'rhythm'
+                            "\nFocus: Optimize text for rhythm and timing patterns extracted from speech analysis."
+                          when 'stress'
+                            "\nFocus: Adjust text structure to match stress patterns and emphasis."
+                          when 'intonation'
+                            "\nFocus: Modify text to support target intonation contours and pitch patterns."
+                          when 'hybrid'
+                            "\nFocus: Balance rhythm, stress, and intonation considerations."
+                          else
+                            "\nFocus: Comprehensive optimization for all detected speech patterns."
+                          end
 
       "#{base_prompt}#{strategy_specific}"
     end
@@ -568,7 +558,7 @@ module ProsodicTextConverter
     def build_pattern_informed_user_prompt(text_analysis, guidance, strategy)
       original_text = text_analysis[:original_text]
       overall_strategy = guidance[:overall_strategy]
-      
+
       base_prompt = <<~PROMPT
         Rewrite this text to match the extracted speech patterns while preserving meaning.
 
@@ -578,25 +568,25 @@ module ProsodicTextConverter
         SPEECH PATTERN ANALYSIS:
         Primary Focus: #{overall_strategy[:primary_focus]}
         Rewrite Aggressiveness: #{overall_strategy[:rewrite_aggressiveness]}
-        
+
       PROMPT
 
       # Add strategy-specific guidance
       strategy_guidance = case strategy.to_s
-                         when 'rhythm'
-                           build_rhythm_guidance_section(guidance[:rhythm_adjustments])
-                         when 'stress'
-                           build_stress_guidance_section(guidance[:stress_adjustments])
-                         when 'intonation'
-                           build_intonation_guidance_section(guidance[:intonation_guidance])
-                         when 'hybrid'
-                           build_hybrid_guidance_section(guidance)
-                         else
-                           build_comprehensive_guidance_section(guidance)
-                         end
+                          when 'rhythm'
+                            build_rhythm_guidance_section(guidance[:rhythm_adjustments])
+                          when 'stress'
+                            build_stress_guidance_section(guidance[:stress_adjustments])
+                          when 'intonation'
+                            build_intonation_guidance_section(guidance[:intonation_guidance])
+                          when 'hybrid'
+                            build_hybrid_guidance_section(guidance)
+                          else
+                            build_comprehensive_guidance_section(guidance)
+                          end
 
       requirements = <<~REQUIREMENTS
-        
+
         REWRITING REQUIREMENTS:
         1. Preserve all semantic content and communicative function
         2. Maintain original register, style, and tone
@@ -613,42 +603,42 @@ module ProsodicTextConverter
     def generate_rhythm_focused_prompts(text_analysis, rhythm_guidance)
       system_prompt = build_pattern_informed_system_prompt('rhythm', { rhythm_adjustments: rhythm_guidance })
       user_prompt = build_rhythm_specific_user_prompt(text_analysis, rhythm_guidance)
-      
+
       { system: system_prompt, user: user_prompt, strategy: 'rhythm' }
     end
 
     def generate_stress_focused_prompts(text_analysis, stress_guidance)
       system_prompt = build_pattern_informed_system_prompt('stress', { stress_adjustments: stress_guidance })
       user_prompt = build_stress_specific_user_prompt(text_analysis, stress_guidance)
-      
+
       { system: system_prompt, user: user_prompt, strategy: 'stress' }
     end
 
     def generate_intonation_focused_prompts(text_analysis, intonation_guidance)
       system_prompt = build_pattern_informed_system_prompt('intonation', { intonation_guidance: intonation_guidance })
       user_prompt = build_intonation_specific_user_prompt(text_analysis, intonation_guidance)
-      
+
       { system: system_prompt, user: user_prompt, strategy: 'intonation' }
     end
 
     def generate_hybrid_prompts(text_analysis, guidance)
       system_prompt = build_pattern_informed_system_prompt('hybrid', guidance)
       user_prompt = build_pattern_informed_user_prompt(text_analysis, guidance, 'hybrid')
-      
+
       { system: system_prompt, user: user_prompt, strategy: 'hybrid' }
     end
 
     def generate_comprehensive_prompts(text_analysis, guidance)
       system_prompt = build_pattern_informed_system_prompt('comprehensive', guidance)
       user_prompt = build_pattern_informed_user_prompt(text_analysis, guidance, 'comprehensive')
-      
+
       { system: system_prompt, user: user_prompt, strategy: 'comprehensive' }
     end
 
     # Build guidance sections for different strategies
 
     def build_rhythm_guidance_section(rhythm_adjustments)
-      return "" unless rhythm_adjustments
+      return '' unless rhythm_adjustments
 
       <<~RHYTHM
         RHYTHM PATTERN TARGETS:
@@ -656,12 +646,12 @@ module ProsodicTextConverter
         - Rhythm Type: #{rhythm_adjustments[:rhythm_type]}
         - Apply rhythm-based sentence segmentation
         - Optimize for regular timing intervals
-        
+
       RHYTHM
     end
 
     def build_stress_guidance_section(stress_adjustments)
-      return "" unless stress_adjustments
+      return '' unless stress_adjustments
 
       <<~STRESS
         STRESS PATTERN TARGETS:
@@ -669,12 +659,12 @@ module ProsodicTextConverter
         - Stress Density: #{stress_adjustments[:stress_density]}
         - Focus on content word emphasis
         - Balance stressed and unstressed syllables
-        
+
       STRESS
     end
 
     def build_intonation_guidance_section(intonation_guidance)
-      return "" unless intonation_guidance[:available]
+      return '' unless intonation_guidance[:available]
 
       <<~INTONATION
         INTONATION PATTERN TARGETS:
@@ -682,14 +672,14 @@ module ProsodicTextConverter
         - Boundary Tones: #{intonation_guidance[:boundary_tones]}
         - Support target pitch movements
         - Optimize for phrase-level intonation
-        
+
       INTONATION
     end
 
     def build_hybrid_guidance_section(guidance)
       rhythm_section = build_rhythm_guidance_section(guidance[:rhythm_adjustments])
       stress_section = build_stress_guidance_section(guidance[:stress_adjustments])
-      
+
       "#{rhythm_section}#{stress_section}INTEGRATION: Balance rhythm and stress considerations.\n"
     end
 
@@ -698,7 +688,7 @@ module ProsodicTextConverter
       sections << build_rhythm_guidance_section(guidance[:rhythm_adjustments])
       sections << build_stress_guidance_section(guidance[:stress_adjustments])
       sections << build_intonation_guidance_section(guidance[:intonation_guidance])
-      
+
       sections.join + "INTEGRATION: Optimize for all speech pattern dimensions.\n"
     end
 
@@ -707,7 +697,7 @@ module ProsodicTextConverter
     def build_rhythm_specific_user_prompt(text_analysis, rhythm_guidance)
       original_text = text_analysis[:original_text]
       target_tempo = rhythm_guidance[:target_tempo] || 120
-      
+
       <<~PROMPT
         Rewrite this text to optimize for rhythm and timing:
 
@@ -733,7 +723,7 @@ module ProsodicTextConverter
     def build_stress_specific_user_prompt(text_analysis, stress_guidance)
       original_text = text_analysis[:original_text]
       stress_pattern = stress_guidance[:stress_pattern] || 'balanced'
-      
+
       <<~PROMPT
         Rewrite this text to optimize for stress patterns:
 
@@ -759,7 +749,7 @@ module ProsodicTextConverter
     def build_intonation_specific_user_prompt(text_analysis, intonation_guidance)
       original_text = text_analysis[:original_text]
       contour_shape = intonation_guidance[:contour_shape] || 'neutral'
-      
+
       <<~PROMPT
         Rewrite this text to optimize for intonation patterns:
 
@@ -787,28 +777,26 @@ module ProsodicTextConverter
     def assess_refinement_needs(result, guidance)
       needs = []
       rewritten_analysis = result[:rewritten_analysis]
-      
+
       # Check if further rhythm optimization needed
       if guidance[:rhythm_adjustments] && !rhythm_optimized?(rewritten_analysis, guidance[:rhythm_adjustments])
         needs << 'rhythm_refinement'
       end
-      
+
       # Check if stress patterns need adjustment
       if guidance[:stress_adjustments] && !stress_optimized?(rewritten_analysis, guidance[:stress_adjustments])
         needs << 'stress_refinement'
       end
-      
+
       # Check sentence length distribution
-      if uneven_sentence_distribution?(rewritten_analysis)
-        needs << 'sentence_balance'
-      end
-      
+      needs << 'sentence_balance' if uneven_sentence_distribution?(rewritten_analysis)
+
       needs
     end
 
     def generate_refinement_prompts(current_result, refinement_needs, guidance)
       current_text = current_result[:rewritten_text]
-      
+
       system_prompt = <<~SYSTEM
         You are refining a text rewrite to better match speech patterns.
         Focus on the specific aspects that need improvement while maintaining meaning.
@@ -832,19 +820,13 @@ module ProsodicTextConverter
 
     def build_refinement_targets(needs, guidance)
       targets = []
-      
-      if needs.include?('rhythm_refinement')
-        targets << "- Improve rhythmic flow and timing"
-      end
-      
-      if needs.include?('stress_refinement')
-        targets << "- Better stress pattern alignment"
-      end
-      
-      if needs.include?('sentence_balance')
-        targets << "- More balanced sentence length distribution"
-      end
-      
+
+      targets << '- Improve rhythmic flow and timing' if needs.include?('rhythm_refinement')
+
+      targets << '- Better stress pattern alignment' if needs.include?('stress_refinement')
+
+      targets << '- More balanced sentence length distribution' if needs.include?('sentence_balance')
+
       targets.join("\n")
     end
 
@@ -852,7 +834,7 @@ module ProsodicTextConverter
       # Simple improvement assessment - could be more sophisticated
       old_score = calculate_overall_alignment_score(old_result[:rewritten_analysis], guidance)
       new_score = calculate_overall_alignment_score(new_result[:rewritten_analysis], guidance)
-      
+
       new_score > old_score
     end
 
@@ -862,10 +844,10 @@ module ProsodicTextConverter
       # Simplified rhythm assessment
       sentences = analysis[:sentences] || []
       return true if sentences.empty?
-      
+
       avg_length = sentences.map { |s| s[:word_count] }.sum / sentences.length.to_f
       target_length = (rhythm_guidance[:target_tempo] || 120) / 60.0 * 4 # Rough estimate
-      
+
       (avg_length - target_length).abs < 2
     end
 
@@ -877,7 +859,7 @@ module ProsodicTextConverter
     def uneven_sentence_distribution?(analysis)
       sentences = analysis[:sentences] || []
       return false if sentences.length < 3
-      
+
       lengths = sentences.map { |s| s[:word_count] }
       variance = calculate_variance(lengths)
       variance > 3.0 # Threshold for unevenness
@@ -885,7 +867,7 @@ module ProsodicTextConverter
 
     def calculate_variance(values)
       return 0 if values.empty?
-      
+
       mean = values.sum / values.length.to_f
       variance = values.map { |v| (v - mean)**2 }.sum / values.length.to_f
       Math.sqrt(variance)
@@ -909,28 +891,28 @@ module ProsodicTextConverter
 
     def assess_rhythm_alignment(analysis, rhythm_guidance)
       return 0.5 unless rhythm_guidance
-      
+
       sentences = analysis[:sentences] || []
       return 0.5 if sentences.empty?
-      
+
       # Simple rhythm alignment based on sentence regularity
       lengths = sentences.map { |s| s[:word_count] }
       variance = calculate_variance(lengths)
-      
+
       # Lower variance = better rhythm alignment
       [1.0 - (variance / 5.0), 0.0].max
     end
 
     def assess_stress_alignment(analysis, stress_guidance)
       return 0.5 unless stress_guidance
-      
+
       # Placeholder stress alignment assessment
       0.7
     end
 
     def assess_intonation_alignment(analysis, intonation_guidance)
       return 0.5 unless intonation_guidance[:available]
-      
+
       # Placeholder intonation alignment assessment
       0.6
     end
@@ -938,10 +920,10 @@ module ProsodicTextConverter
     def calculate_overall_alignment_score(analysis, guidance)
       rhythm_score = assess_rhythm_alignment(analysis, guidance[:rhythm_adjustments])
       stress_score = assess_stress_alignment(analysis, guidance[:stress_adjustments])
-      
+
       # Weighted average based on guidance priorities
       weights = determine_alignment_weights(guidance[:overall_strategy])
-      
+
       (rhythm_score * weights[:rhythm]) + (stress_score * weights[:stress])
     end
 

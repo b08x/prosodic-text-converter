@@ -97,7 +97,7 @@ RSpec.describe ProsodicTextConverter::LLMConverter do
         converter = described_class.new(logger: mock_logger)
 
         expect(converter.provider).to eq(:gemini)
-        expect(converter.model).to eq('gemini-2.0-flash')
+        expect(converter.model).to eq('gemini-2.5-flash')
         expect(converter.logger).to eq(mock_logger)
       end
 
@@ -178,7 +178,7 @@ RSpec.describe ProsodicTextConverter::LLMConverter do
         client_with_model = instance_double('RubyLLM::ClientWithModel')
         client_with_temp = instance_double('RubyLLM::ClientWithTemp')
 
-        expect(mock_client).to receive(:with_model).with('gemini-2.0-flash').and_return(client_with_model)
+        expect(mock_client).to receive(:with_model).with('gemini-2.5-flash').and_return(client_with_model)
         expect(client_with_model).to receive(:with_temperature).with(0.3).and_return(client_with_temp)
         expect(client_with_temp).to receive(:ask).with(String).and_return(expected_ssml)
 
@@ -306,7 +306,7 @@ RSpec.describe ProsodicTextConverter::LLMConverter do
     context 'with valid inputs' do
       it 'successfully converts text using legacy interface' do
         expect(mock_client).to receive(:chat).with(
-          model: 'gemini-2.0-flash',
+          model: 'gemini-2.5-flash',
           messages: array_including(
             hash_including(role: 'system'),
             hash_including(role: 'user')
@@ -699,7 +699,7 @@ RSpec.describe ProsodicTextConverter::LLMConverter do
       allow(client_with_temp).to receive(:ask).and_return(expected_ssml)
 
       expect(mock_logger).to receive(:info).with(/Converting text to SSML/)
-      expect(mock_logger).to receive(:debug).with(/Sending request to gemini:gemini-2.0-flash/)
+      expect(mock_logger).to receive(:debug).with(/Sending request to gemini:gemini-2.5-flash/)
       expect(mock_logger).to receive(:info).with(/LLM conversion completed/)
       expect(mock_logger).to receive(:debug).with(/Generated SSML length:/)
 

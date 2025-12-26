@@ -41,6 +41,7 @@ module ProsodicTextConverter
       @plugin = plugin
       @step_size = step_size
       @block_size = block_size
+      # TODO: make this configurable
       @transform_dir = File.join(File.dirname(__FILE__), '..', '..', 'vamp', 'transforms')
 
       begin
@@ -182,7 +183,8 @@ module ProsodicTextConverter
       logger.debug('Sonic Annotator found')
 
       # Set VAMP_PATH to system directories or environment variable
-      @vamp_path = ENV['VAMP_PATH'] || '/usr/local/share/vamp:/usr/lib/vamp'
+      local_vamp_share = File.expand_path('~/.local/share/vamp-plugins')
+      @vamp_path = ENV['VAMP_PATH'] || "#{local_vamp_share}:/usr/local/share/vamp:/usr/lib/vamp"
       ENV['VAMP_PATH'] = @vamp_path
 
       # Check for required Vamp plugins

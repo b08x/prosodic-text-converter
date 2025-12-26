@@ -239,6 +239,13 @@ module ProsodicTextConverter
       uri = URI(url)
       http = Net::HTTP.new(uri.host, uri.port)
       http.use_ssl = true
+      http.verify_mode = OpenSSL::SSL::VERIFY_PEER
+
+      # Ensure we're using the system's default certificate store
+      # and handle cases where CRL checks might be strictly enforced
+      cert_store = OpenSSL::X509::Store.new
+      cert_store.set_default_paths
+      http.cert_store = cert_store
 
       request = case method
                 when :get

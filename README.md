@@ -197,7 +197,7 @@ Support for multiple AI providers via environment variables configured in your `
 ./bin/prosodic-text-converter --provider=anthropic --model=claude-3-sonnet input.txt
 
 # Google Gemini
-./bin/prosodic-text-converter --provider=gemini --model=gemini-2.0-flash input.txt
+./bin/prosodic-text-converter --provider=gemini --model=gemini-2.5-flash input.txt
 ```
 
 ## Docker Usage
@@ -288,7 +288,7 @@ services:
 --audio=FILE           # Extract prosodic pattern from audio file
 --pitch-backend=NAME   # Pitch analysis backend (aubio, sonic_annotator)
 --provider=NAME        # LLM provider (openai, anthropic, gemini, ollama)
---model=NAME           # Model name (gpt-4, claude-3-sonnet, gemini-2.0-flash)
+--model=NAME           # Model name (gpt-4, claude-3-sonnet, gemini-2.5-flash)
 --verbose              # Show detailed analysis information
 --analyze-only         # Only analyze audio, don't convert text
 --list-backends        # Show available pitch analysis backends

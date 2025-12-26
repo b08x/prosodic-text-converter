@@ -473,7 +473,7 @@ module ProsodicTextConverter
           --analyze-only         Only analyze audio file, don't convert text
           --spectrogram-dir=DIR  Output directory for spectrograms (default: ./spectrograms)
           --provider=NAME        LLM provider (openai, anthropic, gemini, openrouter, ollama, etc.)
-          --model=NAME           Model name (gpt-4, claude-3-sonnet, gemini-2.0-flash, etc.)
+          --model=NAME           Model name (gpt-4, claude-3-sonnet, gemini-2.5-flash, etc.)
           --elevenlabs-voice=ID  ElevenLabs voice ID for speech synthesis
           --elevenlabs-voice-id=ID  ElevenLabs voice ID (alternative parameter)
           --elevenlabs-model=ID  ElevenLabs model (eleven_monolingual_v1, etc.)

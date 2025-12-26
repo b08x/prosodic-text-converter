@@ -301,15 +301,15 @@ module ProsodicTextConverter
       # Check if elevenlabs_voice_id was explicitly set (not just from defaults)
       voice_id = @config.fetch('elevenlabs_voice_id', default: nil)
       voice = @config.fetch('elevenlabs_voice', default: nil)
-      
+
       # If voice_id was set via CLI/env and differs from default, use it
       # Otherwise fall back to elevenlabs_voice if set
-      if voice_id && voice_id != 'L0Dsvb3SLTyegXwtm47J'  # default value
+      if voice_id && voice_id != 'L0Dsvb3SLTyegXwtm47J' # default value
         voice_id
-      elsif voice && voice != 'L0Dsvb3SLTyegXwtm47J'  # default value
+      elsif voice && voice != 'L0Dsvb3SLTyegXwtm47J' # default value
         voice
       else
-        voice_id  # return default if nothing else was set
+        voice_id # return default if nothing else was set
       end
     end
 
@@ -333,7 +333,7 @@ module ProsodicTextConverter
       else
         # Set some sensible defaults if no file exists
         @config.set(:provider, value: 'gemini')
-        @config.set(:model, value: 'gemini-2.0-flash')
+        @config.set(:model, value: 'gemini-2.5-flash')
         @config.set(:pitch_backend, value: 'aubio')
         @config.set(:llm_timeout, value: 30)
         @config.set(:analysis_timeout, value: 60)

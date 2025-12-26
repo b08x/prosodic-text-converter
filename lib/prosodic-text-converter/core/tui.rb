@@ -174,6 +174,7 @@ module ProsodicTextConverter
         input_lines = []
         loop do
           line = @prompt.ask('')
+          break if line.nil?
           break if line.empty? && !input_lines.empty?
 
           input_lines << line
@@ -225,7 +226,7 @@ module ProsodicTextConverter
         models = [
           'openai/gpt-4o',
           'anthropic/claude-3.5-sonnet',
-          'google/gemini-2.0-flash',
+          'google/gemini-2.5-flash',
           'openai/gpt-4-turbo',
           'anthropic/claude-3-haiku',
           'meta-llama/llama-3.1-70b-instruct',
@@ -239,13 +240,13 @@ module ProsodicTextConverter
         models = %w[claude-3-opus claude-3-sonnet claude-3-haiku]
         options[:model] = @prompt.select('Anthropic Model:', models, default: 'claude-3-sonnet')
       when 'gemini'
-        models = %w[gemini-2.0-flash gemini-1.5-pro gemini-1.5-flash]
-        options[:model] = @prompt.select('Gemini Model:', models, default: 'gemini-2.0-flash')
+        models = %w[gemini-2.5-flash gemini-1.5-pro gemini-1.5-flash]
+        options[:model] = @prompt.select('Gemini Model:', models, default: 'gemini-2.5-flash')
       when 'ollama'
         options[:model] = @prompt.ask('Ollama Model:', default: 'llama2')
       else
         # Default model for any provider
-        options[:model] = 'gemini-2.0-flash'
+        options[:model] = 'gemini-2.5-flash'
       end
 
       # Output options

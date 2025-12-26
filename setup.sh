@@ -21,12 +21,11 @@ echo "🎵 Setting up Prosodic Text Converter..."
 # --- Environment Setup ---
 
 mkdir -p "$HOME/.local/bin"
-mkdir -p "lib/vamp/plugins"
+mkdir -p "$HOME/.local/share/vamp-plugins"
 mkdir -p "lib/vamp/transforms"
 
-# Set VAMP_PATH to include our local project plugins
-PROJECT_VAMP_PATH="$(pwd)/lib/vamp/plugins"
-export VAMP_PATH="$PROJECT_VAMP_PATH:${VAMP_PATH:-/usr/local/lib/vamp:/usr/lib/vamp}"
+# Set VAMP_PATH to include our local project plugins and system locations
+export VAMP_PATH="$HOME/.local/share/vamp-plugins:${VAMP_PATH:-/usr/local/lib/vamp:/usr/lib/vamp}"
 
 # Add local bin to PATH for the current session if not already there
 if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
@@ -51,31 +50,69 @@ install_sonic_annotator() {
 }
 
 install_vamp_plugins() {
-    echo "📥 Installing Vamp plugins to lib/vamp/plugins..."
-    VAMP_DIR="lib/vamp/plugins"
-    mkdir -p "$VAMP_DIR"
+    echo "📥 Installing Vamp plugins to ~/.local/share/vamp-plugins/..."
+    VAMP_DEST="$HOME/.local/share/vamp-plugins"
+    SRC_DIR="lib/vamp/plugins"
+    mkdir -p "$VAMP_DEST"
+    mkdir -p "$SRC_DIR"
     TMP_DIR=$(mktemp -d)
 
     # 1. pYIN plugin
-    echo "   - pYIN plugin"
-    curl -L "https://code.soundsoftware.ac.uk/attachments/download/2631/pyin-v1.2-linux64.tar.gz" -o "$TMP_DIR/pyin.tar.gz"
-    tar -xzf "$TMP_DIR/pyin.tar.gz" -C "$TMP_DIR"
-    cp "$TMP_DIR/pyin-v1.2-linux64/pyin.so" "$VAMP_DIR/"
+    echo "   - Checking for pYIN plugin..."
+    if [ -f "$SRC_DIR/pyin-v1.2-linux64.tar.gz" ]; then
+        tar -xzf "$SRC_DIR/pyin-v1.2-linux64.tar.gz" -C "$TMP_DIR"
+        cp "$TMP_DIR/pyin-v1.2-linux64/pyin.so" "$VAMP_DEST/"
+    elif [ -f "$SRC_DIR/pyin-1.2.tar.gz" ]; then
+        echo "     ⚠️  Found source archive pyin-1.2.tar.gz but no binary. Extraction only."
+        tar -xzf "$SRC_DIR/pyin-1.2.tar.gz" -C "$TMP_DIR"
+        # Try to copy metadata if present
+        find "$TMP_DIR" -name "*.n3" -exec cp {} "$VAMP_DEST/" \; 2>/dev/null || true
+        find "$TMP_DIR" -name "*.cat" -exec cp {} "$VAMP_DEST/" \; 2>/dev/null || true
+    else
+        echo "     📥 Downloading pYIN plugin (binary)..."
+        if curl -L "https://code.soundsoftware.ac.uk/attachments/download/2631/pyin-v1.2-linux64.tar.gz" -o "$SRC_DIR/pyin-v1.2-linux64.tar.gz"; then
+            tar -xzf "$SRC_DIR/pyin-v1.2-linux64.tar.gz" -C "$TMP_DIR"
+            cp "$TMP_DIR/pyin-v1.2-linux64/pyin.so" "$VAMP_DEST/"
+        else
+            echo "     ❌ Failed to download pYIN plugin (server might be down)"
+        fi
+    fi
 
     # 2. Vamp SDK Examples
-    echo "   - Vamp SDK examples"
-    curl -L "https://code.soundsoftware.ac.uk/attachments/download/2693/vamp-plugin-sdk-2.10.0-binaries-amd64-linux.tar.gz" -o "$TMP_DIR/vamp-sdk.tar.gz"
-    tar -xzf "$TMP_DIR/vamp-sdk.tar.gz" -C "$TMP_DIR"
-    find "$TMP_DIR/vamp-plugin-sdk-2.10.0-binaries-amd64-linux" -name "*.so" -exec cp {} "$VAMP_DIR/" \;
+    echo "   - Checking for Vamp SDK examples..."
+    if [ -f "$SRC_DIR/vamp-plugin-sdk-2.10.0-binaries-amd64-linux.tar.gz" ]; then
+        tar -xzf "$SRC_DIR/vamp-plugin-sdk-2.10.0-binaries-amd64-linux.tar.gz" -C "$TMP_DIR"
+        find "$TMP_DIR" -name "*.so" -exec cp {} "$VAMP_DEST/" \;
+    elif [ -f "$SRC_DIR/vamp-plugin-sdk-2.10.0.tar.gz" ]; then
+        echo "     ⚠️  Found SDK source pyin-1.2.tar.gz. No examples to extract."
+    else
+        echo "     📥 Downloading Vamp SDK (binaries)..."
+        if curl -L "https://code.soundsoftware.ac.uk/attachments/download/2693/vamp-plugin-sdk-2.10.0-binaries-amd64-linux.tar.gz" -o "$SRC_DIR/vamp-plugin-sdk-2.10.0-binaries-amd64-linux.tar.gz"; then
+            tar -xzf "$SRC_DIR/vamp-plugin-sdk-2.10.0-binaries-amd64-linux.tar.gz" -C "$TMP_DIR"
+            find "$TMP_DIR" -name "*.so" -exec cp {} "$VAMP_DEST/" \;
+        else
+             echo "     ❌ Failed to download Vamp SDK binaries"
+        fi
+    fi
 
     # 3. Aubio Vamp plugins
-    echo "   - Aubio Vamp plugins"
-    curl -L "https://aubio.org/bin/vamp-aubio-plugins/0.5.1/vamp-aubio-plugins-0.5.1-x86_64.tar.bz2" -o "$TMP_DIR/aubio-vamp.tar.bz2"
-    tar -xjf "$TMP_DIR/aubio-vamp.tar.bz2" -C "$TMP_DIR"
-    cp "$TMP_DIR/vamp-aubio-plugins-0.5.1-x86_64/"*.so "$VAMP_DIR/"
+    echo "   - Checking for Aubio Vamp plugins..."
+    if [ -f "$SRC_DIR/vamp-aubio-plugins-0.5.1-x86_64.tar.bz2" ]; then
+        tar -xjf "$SRC_DIR/vamp-aubio-plugins-0.5.1-x86_64.tar.bz2" -C "$TMP_DIR"
+        find "$TMP_DIR" -name "*.so" -exec cp {} "$VAMP_DEST/" \;
+        find "$TMP_DIR" -name "*.n3" -exec cp {} "$VAMP_DEST/" \;
+    else
+        echo "     📥 Downloading Aubio Vamp plugins..."
+        if curl -L "https://aubio.org/bin/vamp-aubio-plugins/0.5.1/vamp-aubio-plugins-0.5.1-x86_64.tar.bz2" -o "$SRC_DIR/vamp-aubio-plugins-0.5.1-x86_64.tar.bz2"; then
+            tar -xjf "$SRC_DIR/vamp-aubio-plugins-0.5.1-x86_64.tar.bz2" -C "$TMP_DIR"
+            cp "$TMP_DIR/vamp-aubio-plugins-0.5.1-x86_64/"*.so "$VAMP_DEST/"
+        else
+            echo "     ❌ Failed to download Aubio plugins"
+        fi
+    fi
 
     rm -rf "$TMP_DIR"
-    echo "✅ Vamp plugins installed successfully in lib/vamp/plugins"
+    echo "✅ Vamp plugins installation attempted in $VAMP_DEST"
 }
 
 # --- System Dependencies ---
@@ -87,13 +124,13 @@ case "$OSTYPE" in
         if command -v apt-get &> /dev/null; then
             # Debian/Ubuntu
             sudo apt-get update
-            sudo apt-get install -y sox imagemagick ruby ruby-dev build-essential aubio-tools
+            sudo apt-get install -y sox imagemagick ruby ruby-dev build-essential aubio-tools libboost-all-dev
         elif command -v pacman &> /dev/null; then
             # Arch Linux
-            sudo pacman -Sy --needed sox imagemagick ruby aubio
+            sudo pacman -Sy --needed sox imagemagick ruby aubio boost
         elif command -v yum &> /dev/null; then
             # RHEL/CentOS
-            sudo yum install -y sox ImageMagick ruby ruby-devel gcc aubio
+            sudo yum install -y sox ImageMagick ruby ruby-devel gcc aubio boost-devel
         else
             echo "❌ Unsupported Linux distribution. Please install sox, imagemagick, aubio, and ruby manually."
             exit 1
@@ -102,7 +139,7 @@ case "$OSTYPE" in
     darwin*)
         # macOS
         if command -v brew &> /dev/null; then
-            brew install sox imagemagick ruby aubio
+            brew install sox imagemagick ruby aubio boost
         else
             echo "❌ Homebrew not found. Please install Homebrew first:"
             echo "   /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
@@ -153,6 +190,17 @@ fi
 if command -v sonic-annotator &> /dev/null; then
     SONIC_AVAILABLE=true
     echo "✅ Sonic Annotator found - research-grade analysis"
+    
+    # Check if plugins are actually working
+    if [[ "$OSTYPE" == linux-gnu* ]]; then
+        if ! VAMP_PATH="$VAMP_PATH" sonic-annotator -l | grep -q "pyin:pyin"; then
+            echo "ℹ️  Vamp plugins (like pYIN) not found in VAMP_PATH"
+            read -p "❓ Would you like to install common Vamp plugins to ~/.local/share/vamp-plugins? [y/N] " install_vamp
+            if [[ "$install_vamp" =~ ^[Yy]$ ]]; then
+                install_vamp_plugins
+            fi
+        fi
+    fi
 else
     echo "ℹ️  Sonic Annotator not found - optional for advanced analysis"
     if [[ "$OSTYPE" == linux-gnu* ]]; then
@@ -306,7 +354,7 @@ if [[ "$SONIC_AVAILABLE" == false ]]; then
     echo "   # You can run these functions directly if needed, or re-run setup.sh"
     echo "   # to trigger the interactive prompt."
     echo "   # sonic-annotator will be in ~/.local/bin"
-    echo "   # Plugins will be in lib/vamp/plugins"
+    echo "   # Plugins will be in ~/.local/share/vamp-plugins/"
     echo ""
 fi
 
